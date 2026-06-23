@@ -2,12 +2,12 @@
 // SillyTavern extension entry point.
 // Registers the generate_interceptor hook and wires up the settings UI.
 
+import { extension_settings, getContext } from '../../../extensions.js';
+import { saveSettingsDebounced } from '../../../../script.js';
+
 import { EXT_ID, defaultSettings, migrateSettings, newEntry, getActiveEntries } from './settings.js';
 import { buildInjectionPayload, injectIntoPrompt } from './pipeline.js';
 import { renderSettingsPanel } from './ui.js';
-
-// ST exposes these globals in the extension scripting environment.
-/* global extension_settings, saveSettingsDebounced, getContext */
 
 function loadSettings() {
   if (!extension_settings[EXT_ID]) {
