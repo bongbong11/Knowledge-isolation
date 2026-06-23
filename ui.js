@@ -138,7 +138,7 @@ function rerenderLayer(layer) {
 
 function openCreateModal(layer) {
   const meta = LAYER_META[layer];
-  const overlay = el('div', { class: 'ki-modal-overlay open' });
+  const overlay = el('div', { class: 'ki-root ki-modal-overlay' });
 
   const titleInput = el('input', { class: 'ki-input', type: 'text', placeholder: '항목 제목을 입력하세요' });
   const contentInput = el('textarea', { class: 'ki-textarea', placeholder: '세부 내용을 입력하세요...' });
@@ -347,7 +347,7 @@ function renderSettingsTab(opts) {
 }
 
 function openPreviewModal(onRunPreview) {
-  const overlay = el('div', { class: 'ki-modal-overlay open' });
+  const overlay = el('div', { class: 'ki-root ki-modal-overlay' });
   const body = el('div', { class: 'ki-modal-body' });
   const modal = el('div', { class: 'ki-modal' }, [
     el('div', { class: 'ki-modal-header' }, [
@@ -408,7 +408,7 @@ function openPreviewModal(onRunPreview) {
 // ─────────────────────────────────────────────────────────────
 
 function openPromptAreaModal() {
-  const overlay = el('div', { class: 'ki-modal-overlay open' });
+  const overlay = el('div', { class: 'ki-root ki-modal-overlay' });
   const list = el('div', { class: 'ki-prompt-area-list' });
   PROMPT_AREAS.forEach((area) => {
     const item = el('div', { class: 'ki-prompt-area-item' }, [
@@ -435,7 +435,7 @@ function openPromptAreaModal() {
 }
 
 function openPromptListModal(area) {
-  const overlay = el('div', { class: 'ki-modal-overlay open' });
+  const overlay = el('div', { class: 'ki-root ki-modal-overlay' });
   const listMount = el('div', { class: 'ki-prompt-saved-list' });
 
   function refresh() {
@@ -484,7 +484,7 @@ function openPromptListModal(area) {
 
 function openPromptEditModal(area, idx) {
   const existing = idx >= 0 ? STATE.prompts[area.key][idx] : null;
-  const overlay = el('div', { class: 'ki-modal-overlay open' });
+  const overlay = el('div', { class: 'ki-root ki-modal-overlay' });
   const nameInput = el('input', { class: 'ki-input', type: 'text', value: existing?.name || '' });
   const contentInput = el('textarea', { class: 'ki-textarea-lg', value: existing?.content || '' });
   contentInput.value = existing?.content || '';
