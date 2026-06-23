@@ -295,10 +295,10 @@ function renderSettingsTab(opts) {
     class: 'ki-input',
     type: 'text',
     value: STATE.gm.modelProfile,
-    placeholder: 'Connection Manager 프로필 ID 입력',
+    placeholder: '예: Gemini-GM (Connection Manager에 저장된 프로필 이름)',
   });
   modelInput.addEventListener('change', () => { STATE.gm.modelProfile = modelInput.value.trim(); persist(); });
-  wrap.appendChild(el('div', { class: 'ki-field-label' }, 'GM 모델 프로필 (Connection Manager)'));
+  wrap.appendChild(el('div', { class: 'ki-field-label' }, 'GM 모델 프로필 이름 (Connection Manager)'));
   wrap.appendChild(modelInput);
 
   wrap.appendChild(toggleRow('GM 모델 매 턴 호출', STATE.gm.callEveryTurn, (v) => { STATE.gm.callEveryTurn = v; persist(); }));
