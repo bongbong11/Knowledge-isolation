@@ -24,6 +24,7 @@ let ONCHANGE = null;
 let ONNEWENTRY = null;
 let ONRUNPREVIEW = null;
 let activeLayerTab = 'world';
+let isLight = false; // theme toggle state, persisted in STATE.uiTheme if available
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -37,11 +38,23 @@ function el(tag, attrs = {}, children = []) {
     if (c == null) continue;
     node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
   }
+  if (node.classList.contains('ki-root') && isLight) node.classList.add('light');
   return node;
 }
 
 function persist() {
   ONCHANGE?.();
+}
+
+function applyTheme() {
+  document.querySelectorAll('.ki-root').forEach((node) => {
+    node.classList.toggle('light', isLight);
+  });
+}
+
+function toggleTheme() {
+  isLight = !isLight;
+  applyTheme();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -148,11 +161,18 @@ function openCreateModal(layer) {
   let pace = 'normal';
   let charAware = false;
 
+  const impSelClass = { high: 'sel-high', mid: 'sel-mid', low: 'sel-low' };
   const impGroup = el('div', { class: 'ki-sel-group' });
   ['high', 'mid', 'low'].forEach((v) => {
     const btn = el('button', {
-      class: 'ki-sel-btn' + (v === importance ? ` sel-${v}` : ''),
-      onclick: () => { importance = v; refreshSel(impGroup, v); },
+      class: 'ki-sel-btn' + (v === importance ? ` ${impSelClass[v]}` : ''),
+      onclick: () => {
+        importance = v;
+        Array.from(impGroup.children).forEach((b, i2) => {
+          const vv = ['high', 'mid', 'low'][i2];
+          b.className = 'ki-sel-btn' + (vv === v ? ` ${impSelClass[vv]}` : '');
+        });
+      },
     }, v === 'high' ? '🔴 높음' : v === 'mid' ? '🟡 중간' : '⚪ 낮음');
     impGroup.appendChild(btn);
   });
@@ -166,11 +186,17 @@ function openCreateModal(layer) {
         onclick: (e) => { blind = !blind; e.target.classList.toggle('on'); },
       }),
     ]);
+    const paceValues = ['never', 'slow', 'normal', 'confession_ready'];
     const paceGroup = el('div', { class: 'ki-sel-group' });
-    ['never', 'slow', 'normal', 'confession_ready'].forEach((v) => {
+    paceValues.forEach((v) => {
       const btn = el('button', {
         class: 'ki-sel-btn' + (v === pace ? ' sel-fixed' : ''),
-        onclick: () => { pace = v; refreshSel(paceGroup, v, 'sel-fixed'); },
+        onclick: () => {
+          pace = v;
+          Array.from(paceGroup.children).forEach((b, i2) => {
+            b.className = 'ki-sel-btn' + (paceValues[i2] === v ? ' sel-fixed' : '');
+          });
+        },
       }, paceLabel(v));
       paceGroup.appendChild(btn);
     });
@@ -187,14 +213,6 @@ function openCreateModal(layer) {
       }),
     ]);
     extraRow.appendChild(awareRow);
-  }
-
-  function refreshSel(group, val, prefix = 'sel-') {
-    Array.from(group.children).forEach((btn, i) => {
-      btn.className = 'ki-sel-btn';
-    });
-    // Re-apply selection class to the clicked one is handled by caller via class list;
-    // simplest robust approach: rebuild classes based on val match using dataset.
   }
 
   const modal = el('div', { class: 'ki-modal' }, [
@@ -599,9 +617,15 @@ export function openFloatingPanel({ settings, onChange, onNewEntry, onRunPreview
   const closeBtn = el('div', { class: 'ki-panel-close' }, '×');
   closeBtn.addEventListener('click', closeFloatingPanel);
 
+  const themeBtn = el('div', { class: 'ki-theme-toggle' }, isLight ? '🌙' : '☀️');
+  themeBtn.addEventListener('click', () => {
+    toggleTheme();
+    themeBtn.textContent = isLight ? '🌙' : '☀️';
+  });
+
   const header = el('div', { class: 'ki-header', id: 'ki-drag-handle' }, [
     el('div', { class: 'ki-header-title' }, '🔐 Knowledge Isolation'),
-    el('div', { class: 'ki-header-right' }, [extLabel, extToggle, closeBtn]),
+    el('div', { class: 'ki-header-right' }, [themeBtn, extLabel, extToggle, closeBtn]),
   ]);
 
   // Tabs
