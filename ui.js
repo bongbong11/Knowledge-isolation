@@ -289,23 +289,29 @@ function toggleRow(label, value, onChange) {
 function renderSettingsTab(opts) {
   const wrap = el('div', {});
 
-  // GM model
+  // GM model — populated from ST's Connection Manager profiles, not free text
   wrap.appendChild(el('div', { class: 'ki-section-title' }, 'GM 모델 설정'));
-  const modelInput = el('input', {
-    class: 'ki-input',
-    type: 'text',
-    value: STATE.gm.modelProfile,
-    placeholder: '예: Gemini-GM (Connection Manager에 저장된 프로필 이름)',
+  wrap.appendChild(el('div', { class: 'ki-field-label' }, 'GM 모델 프로필 (Connection Manager)'));
+
+  const profiles = (opts.getConnectionProfiles?.() || []);
+  const modelSelect = el('select', { class: 'ki-input' });
+  modelSelect.appendChild(el('option', { value: '' }, '— 프로필 선택 —'));
+  profiles.forEach((p) => {
+    const opt = el('option', { value: p.name }, p.name);
+    if (p.name === STATE.gm.modelProfile) opt.setAttribute('selected', 'selected');
+    modelSelect.appendChild(opt);
   });
-  modelInput.addEventListener('change', () => { STATE.gm.modelProfile = modelInput.value.trim(); persist(); });
-  wrap.appendChild(el('div', { class: 'ki-field-label' }, 'GM 모델 프로필 이름 (Connection Manager)'));
-  wrap.appendChild(modelInput);
+  if (!profiles.length) {
+    modelSelect.appendChild(el('option', { value: '', disabled: 'disabled' }, '(Connection Manager에 저장된 프로필 없음)'));
+  }
+  modelSelect.addEventListener('change', () => { STATE.gm.modelProfile = modelSelect.value; persist(); });
+  wrap.appendChild(modelSelect);
 
   wrap.appendChild(toggleRow('GM 모델 매 턴 호출', STATE.gm.callEveryTurn, (v) => { STATE.gm.callEveryTurn = v; persist(); }));
   wrap.appendChild(toggleRow('단서 중복 방지', STATE.gm.dedupeClues, (v) => { STATE.gm.dedupeClues = v; persist(); }));
 
   wrap.appendChild(el('div', { class: 'ki-model-notice' },
-    '⚠️ 메인 RP 모델과 다른 별도 모델이 반드시 필요합니다. ST Connection Manager에서 GM용 프로필을 별도로 설정하세요.'));
+    '⚠️ 메인 RP 모델과 다른 별도 모델이 반드시 필요합니다. Connection Manager에서 GM용 프로필을 먼저 만들어두세요.'));
 
   // Outlet
   wrap.appendChild(el('div', { class: 'ki-section-title' }, '아웃렛 주입 설정'));
@@ -521,20 +527,66 @@ function openPromptEditModal(area, idx) {
 // Top-level panel: header (ext on/off), tabs, tab content
 // ─────────────────────────────────────────────────────────────
 
-export function renderSettingsPanel({ container, settings, onChange, onNewEntry, onRunPreview }) {
-  if (!container) {
-    console.error('[Knowledge Isolation] Settings container not found.');
-    return;
-  }
+function makeDraggable(panel, handle) {
+  let drag = false, sx, sy, sl, st;
+  const go = (cx, cy) => {
+    drag = true; sx = cx; sy = cy;
+    const r = panel.getBoundingClientRect(); sl = r.left; st = r.top;
+    panel.style.right = 'auto';
+    panel.style.transform = 'none';
+    document.body.style.userSelect = 'none';
+  };
+  const mv = (cx, cy) => {
+    if (!drag) return;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    panel.style.left = Math.max(0, Math.min(vw - panel.offsetWidth, sl + cx - sx)) + 'px';
+    panel.style.top = Math.max(0, Math.min(vh - 60, st + cy - sy)) + 'px';
+  };
+  const up = () => { drag = false; document.body.style.userSelect = ''; };
+  handle.addEventListener('mousedown', (e) => { if (e.target.closest('button,.ki-ext-toggle')) return; go(e.clientX, e.clientY); });
+  document.addEventListener('mousemove', (e) => mv(e.clientX, e.clientY));
+  document.addEventListener('mouseup', up);
+  handle.addEventListener('touchstart', (e) => { if (e.target.closest('button,.ki-ext-toggle')) return; const t = e.touches[0]; go(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchmove', (e) => { if (!drag) return; mv(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchend', up);
+}
+
+function makeResizable(panel, handle) {
+  let r = false, rx, ry, rw, rh;
+  handle.addEventListener('mousedown', (e) => { r = true; rx = e.clientX; ry = e.clientY; rw = panel.offsetWidth; rh = panel.offsetHeight; document.body.style.userSelect = 'none'; e.preventDefault(); });
+  document.addEventListener('mousemove', (e) => { if (!r) return; panel.style.width = Math.max(380, rw + e.clientX - rx) + 'px'; panel.style.height = Math.max(420, rh + e.clientY - ry) + 'px'; });
+  document.addEventListener('mouseup', () => { r = false; document.body.style.userSelect = ''; });
+}
+
+let _panelEl = null;
+
+function closeFloatingPanel() {
+  _panelEl?.remove();
+  _panelEl = null;
+}
+
+function isFloatingPanelOpen() {
+  return !!document.getElementById('ki-float-panel');
+}
+
+/**
+ * Renders the extension as a standalone draggable/resizable floating
+ * panel appended directly to document.body — matching the pattern used
+ * by other working ST extensions in this install (chatl_royal etc.),
+ * rather than being trapped inline inside the Extensions drawer.
+ */
+export function openFloatingPanel({ settings, onChange, onNewEntry, onRunPreview, getConnectionProfiles }) {
+  if (isFloatingPanelOpen()) return;
+
   STATE = settings;
   ONCHANGE = onChange;
   ONNEWENTRY = onNewEntry;
   ONRUNPREVIEW = onRunPreview;
 
-  container.innerHTML = '';
-  container.classList.add('ki-root');
+  const panel = el('div', { class: 'ki-root', id: 'ki-float-panel' });
+  panel.style.cssText = 'position:fixed;top:60px;right:20px;width:480px;height:78vh;z-index:9998;display:flex;flex-direction:column;resize:both;overflow:hidden;min-width:380px;min-height:420px;';
 
-  // Header with ext on/off
+  // Header (drag handle)
   const extToggle = el('div', { class: 'ki-ext-toggle' + (STATE.enabled ? ' on' : '') });
   const extLabel = el('span', { class: 'ki-ext-status' + (STATE.enabled ? ' on' : '') }, STATE.enabled ? 'ON' : 'OFF');
   extToggle.addEventListener('click', () => {
@@ -544,14 +596,17 @@ export function renderSettingsPanel({ container, settings, onChange, onNewEntry,
     extLabel.classList.toggle('on', STATE.enabled);
     persist();
   });
-  const header = el('div', { class: 'ki-header' }, [
+  const closeBtn = el('div', { class: 'ki-panel-close' }, '×');
+  closeBtn.addEventListener('click', closeFloatingPanel);
+
+  const header = el('div', { class: 'ki-header', id: 'ki-drag-handle' }, [
     el('div', { class: 'ki-header-title' }, '🔐 Knowledge Isolation'),
-    el('div', { class: 'ki-header-right' }, [extLabel, extToggle]),
+    el('div', { class: 'ki-header-right' }, [extLabel, extToggle, closeBtn]),
   ]);
 
   // Tabs
   const tabsBar = el('div', { class: 'ki-tabs' });
-  const contentMount = el('div', { class: 'ki-content' });
+  const contentMount = el('div', { class: 'ki-content', id: 'ki-content-mount' });
 
   const tabs = [
     { key: 'world', label: 'World' },
@@ -563,7 +618,7 @@ export function renderSettingsPanel({ container, settings, onChange, onNewEntry,
   function renderTabContent(key) {
     contentMount.innerHTML = '';
     if (key === 'settings') {
-      contentMount.appendChild(renderSettingsTab({ onRunPreview: ONRUNPREVIEW }));
+      contentMount.appendChild(renderSettingsTab({ onRunPreview: ONRUNPREVIEW, getConnectionProfiles }));
       return;
     }
     const meta = LAYER_META[key];
@@ -589,8 +644,23 @@ export function renderSettingsPanel({ container, settings, onChange, onNewEntry,
     tabsBar.appendChild(tabEl);
   });
 
-  container.appendChild(header);
-  container.appendChild(tabsBar);
-  container.appendChild(contentMount);
+  const resizeHandle = el('div', { class: 'ki-panel-resize' }, '⇲');
+
+  panel.appendChild(header);
+  panel.appendChild(tabsBar);
+  panel.appendChild(contentMount);
+  panel.appendChild(resizeHandle);
+
+  document.body.appendChild(panel);
+  _panelEl = panel;
+
+  makeDraggable(panel, header);
+  makeResizable(panel, resizeHandle);
+
   renderTabContent(activeLayerTab);
+}
+
+export function toggleFloatingPanel(opts) {
+  if (isFloatingPanelOpen()) closeFloatingPanel();
+  else openFloatingPanel(opts);
 }
