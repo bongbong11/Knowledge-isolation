@@ -1,5 +1,6 @@
 /* style.css — Knowledge Isolation
-   Scoped under .ki-root to avoid leaking into SillyTavern's own styles. */
+   .ki-root is now the floating panel itself (position:fixed, set inline
+   in ui.js), not just a scoping wrapper inside ST's settings drawer. */
 
 .ki-root {
   --ki-bg: #0f0f13;
@@ -24,9 +25,13 @@
   font-family: inherit;
   font-size: 13px;
   color: var(--ki-text);
+  background: var(--ki-surface);
+  border: 1px solid var(--ki-border-active);
+  border-radius: 12px;
+  box-shadow: 0 16px 50px rgba(0,0,0,.5);
 }
 
-.ki-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.ki-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--ki-border); cursor: move; user-select: none; flex-shrink: 0; }
 .ki-header-title { font-size: 14px; font-weight: 600; }
 .ki-header-right { display: flex; align-items: center; gap: 8px; }
 .ki-ext-status { font-size: 10.5px; padding: 3px 9px; border-radius: 20px; font-weight: 500; color: var(--ki-text-dim); background: var(--ki-surface2); border: 1px solid var(--ki-border); }
@@ -35,13 +40,16 @@
 .ki-ext-toggle.on { background: var(--ki-user); }
 .ki-ext-toggle::after { content: ''; width: 13px; height: 13px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: left .2s; }
 .ki-ext-toggle.on::after { left: 18px; }
+.ki-panel-close { cursor: pointer; font-size: 18px; color: var(--ki-text-muted); padding: 0 4px; line-height: 1; }
+.ki-panel-close:hover { color: var(--ki-text); }
+.ki-panel-resize { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: se-resize; display: flex; align-items: flex-end; justify-content: flex-end; padding: 3px; opacity: .4; font-size: 13px; user-select: none; color: var(--ki-text-dim); }
 
-.ki-tabs { display: flex; gap: 3px; margin-bottom: 10px; }
+.ki-tabs { display: flex; gap: 3px; padding: 10px 14px 0; flex-shrink: 0; }
 .ki-tab { flex: 1; padding: 6px 8px; border-radius: 7px; font-size: 11px; font-weight: 500; text-align: center; cursor: pointer; color: var(--ki-text-muted); border: 1px solid transparent; background: var(--ki-surface); }
 .ki-tab:hover { background: var(--ki-surface2); color: var(--ki-text); }
 .ki-tab.active { color: var(--ki-world); background: var(--ki-world-dim); border-color: var(--ki-world-mid); }
 
-.ki-content { background: var(--ki-surface); border: 1px solid var(--ki-border); border-radius: 10px; padding: 14px; max-height: 480px; overflow-y: auto; }
+.ki-content { flex: 1; min-height: 0; padding: 14px; overflow-y: auto; }
 
 .ki-layer-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; margin-bottom: 10px; background: var(--ki-world-dim); color: var(--ki-world); border: 1px solid var(--ki-world-mid); }
 
