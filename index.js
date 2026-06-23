@@ -1,25 +1,38 @@
 // index.js — Knowledge Isolation
 // SillyTavern extension entry point.
 // Registers the generate_interceptor hook and wires up the settings UI.
+//
+// Pattern follows other working third-party extensions in this ST install
+// (e.g. chatl_royal): use the global `SillyTavern.getContext()` accessor
+// rather than importing extension_settings/getContext via relative paths,
+// since exact file layout differs across ST versions and relative imports
+// from extensions/third-party/<name>/ broke (ReferenceError: extension_settings
+// is not defined).
 
-import { extension_settings, getContext } from '../../../extensions.js';
-import { saveSettingsDebounced } from '../../../../script.js';
+import { event_types } from '../../../events.js';
 
 import { EXT_ID, defaultSettings, migrateSettings, newEntry, getActiveEntries } from './settings.js';
 import { buildInjectionPayload, injectIntoPrompt } from './pipeline.js';
 import { renderSettingsPanel } from './ui.js';
 
+const MODULE_NAME = EXT_ID;
+
+function ctx() {
+  return SillyTavern.getContext();
+}
+
 function loadSettings() {
-  if (!extension_settings[EXT_ID]) {
-    extension_settings[EXT_ID] = defaultSettings();
+  const c = ctx();
+  if (!c.extensionSettings[MODULE_NAME]) {
+    c.extensionSettings[MODULE_NAME] = defaultSettings();
   } else {
-    extension_settings[EXT_ID] = migrateSettings(extension_settings[EXT_ID]);
+    c.extensionSettings[MODULE_NAME] = migrateSettings(c.extensionSettings[MODULE_NAME]);
   }
-  return extension_settings[EXT_ID];
+  return c.extensionSettings[MODULE_NAME];
 }
 
 function saveSettings() {
-  saveSettingsDebounced();
+  ctx().saveSettingsDebounced();
 }
 
 /**
@@ -35,7 +48,7 @@ function getRecentContextSummary(stContext, turns = 6) {
       .map(m => `${m.is_user ? 'User' : (m.name || 'Char')}: ${(m.mes || '').slice(0, 280)}`)
       .join('\n');
   } catch (err) {
-    console.error('[Knowledge Isolation] Failed to summarize recent context:', err);
+    console.error(`[${MODULE_NAME}] Failed to summarize recent context:`, err);
     return '';
   }
 }
@@ -51,18 +64,13 @@ function getRecentContextSummary(stContext, turns = 6) {
  * async (chat, contextSize, abort, type) => { ...mutate chat in place... }
  */
 async function knowledgeIsolationInterceptor(chat, contextSize, abort, type) {
-  const settings = extension_settings[EXT_ID];
+  const stContext = ctx();
+  const settings = stContext.extensionSettings[MODULE_NAME];
   if (!settings || !settings.enabled) return;
 
-  const stContext = getContext();
-
-  // Find the system prompt entry that contains our outlet macro.
   const macro = `{{outlet::${settings.outletName}}}`;
   const target = chat.find(m => typeof m.mes === 'string' && m.mes.includes(macro));
-  if (!target) {
-    // Nothing to do — person hasn't placed the macro, or it already ran.
-    return;
-  }
+  if (!target) return; // person hasn't placed the macro, or nothing to do
 
   const recentContext = getRecentContextSummary(stContext);
   const payload = await buildInjectionPayload(stContext, settings, recentContext);
@@ -70,20 +78,16 @@ async function knowledgeIsolationInterceptor(chat, contextSize, abort, type) {
   target.mes = injectIntoPrompt(target.mes, settings.outletName, payload);
 }
 
-// Register with ST's global interceptor list. ST looks for a function
-// whose name matches manifest.json's "generate_interceptor" field (or,
-// in newer ST versions, a function exported here and referenced by name).
+// Register with ST's global interceptor list (must match manifest.json's
+// "generate_interceptor" field).
 window.knowledgeIsolationInterceptor = knowledgeIsolationInterceptor;
 
 /**
  * Manual "preview" run — used by the Settings tab's "주입 미리보기" button.
- * Does the same thing as the interceptor, but returns the payload directly
- * for display instead of mutating chat, and reports per-stage status so the
- * UI can render the step-by-step pipeline view.
  */
 export async function runInjectionPreview(onStepUpdate) {
-  const settings = extension_settings[EXT_ID];
-  const stContext = getContext();
+  const stContext = ctx();
+  const settings = stContext.extensionSettings[MODULE_NAME];
   const recentContext = getRecentContextSummary(stContext);
 
   onStepUpdate?.('world-load', { status: 'active' });
@@ -109,31 +113,37 @@ export async function runInjectionPreview(onStepUpdate) {
 }
 
 /**
- * Bootstraps the settings UI inside ST's extensions settings panel.
- * ST does not auto-load each extension's settings.html — we fetch it
- * ourselves and append it into one of ST's two settings containers
- * (#extensions_settings or #extensions_settings2), matching the pattern
- * used by other third-party extensions (see e.g. "Edit Tools" in console log).
+ * Fetches settings.html and appends it into ST's extensions settings
+ * drawer area (mirrors the pattern other extensions in this install use,
+ * e.g. chatl_royal builds its drawer HTML inline; some others fetch a file).
  */
 async function injectSettingsHtml() {
+  if (document.getElementById('knowledge_isolation_settings')) return true;
   try {
-    const res = await fetch('/scripts/extensions/third-party/Knowledge-isolation/settings.html');
+    const res = await fetch(`/scripts/extensions/third-party/Knowledge-isolation/settings.html`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
     const mount = document.getElementById('extensions_settings2') || document.getElementById('extensions_settings');
     if (!mount) {
-      console.error('[Knowledge Isolation] Could not find ST extensions settings container.');
+      console.error(`[${MODULE_NAME}] Could not find ST extensions settings container.`);
       return false;
     }
     mount.insertAdjacentHTML('beforeend', html);
     return true;
   } catch (err) {
-    console.error('[Knowledge Isolation] Failed to load settings.html:', err);
+    console.error(`[${MODULE_NAME}] Failed to load settings.html:`, err);
     return false;
   }
 }
 
-async function init() {
+/**
+ * Entry point called once ST itself is fully ready (APP_READY), matching
+ * the pattern used by other working extensions in this install rather
+ * than firing on jQuery's bare document-ready.
+ */
+export async function onActivate() {
+  console.log(`[${MODULE_NAME}] activate`);
+
   const settings = loadSettings();
   const ok = await injectSettingsHtml();
   if (!ok) return;
@@ -145,10 +155,13 @@ async function init() {
     onNewEntry: (layer, overrides) => newEntry(layer, overrides),
     onRunPreview: runInjectionPreview,
   });
+
+  console.log(`[${MODULE_NAME}] ready`);
 }
 
-// ST extensions are typically bootstrapped on jQuery's document-ready,
-// since ST's own UI is still jQuery-based as of this writing.
 jQuery(async () => {
-  init();
+  const stContext = ctx();
+  stContext.eventSource.on(event_types.APP_READY, async () => {
+    await onActivate();
+  });
 });
