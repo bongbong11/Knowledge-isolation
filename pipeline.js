@@ -20,27 +20,45 @@ function entriesToText(entries) {
 
 /**
  * Calls the GM model via ST's Connection Manager profile.
- * `stContext` is the object returned by SillyTavern's getContext().
- * `profileId` is the Connection Manager profile id configured in settings.
+ * `stContext` is the object returned by SillyTavern.getContext().
+ * `profileName` is the *name* of a saved Connection Manager profile
+ * (matches the pattern used by other working extensions in this ST
+ * install — profiles are looked up by name, not by some separate id
+ * field, and the call goes through ConnectionManagerRequestService).
  *
- * Returns the raw text response from the GM model, or null on failure.
+ * Returns the raw text response from the GM model, or null on failure
+ * (including "no profile configured", which is a normal/expected state
+ * before the person sets one up).
  */
-async function callGmModel(stContext, profileId, promptText) {
-  if (!profileId) {
+async function callGmModel(stContext, profileName, promptText) {
+  if (!profileName) {
     console.warn('[Knowledge Isolation] No GM model profile configured.');
     return null;
   }
+  if (!stContext.ConnectionManagerRequestService) {
+    console.error('[Knowledge Isolation] ConnectionManagerRequestService not available.');
+    return null;
+  }
   try {
-    // ConnectionManagerRequestService is the documented ST service for
-    // making a generation request against a *different* profile than
-    // the one currently active for the main chat.
-    const { ConnectionManagerRequestService } = stContext;
-    if (!ConnectionManagerRequestService) {
-      console.error('[Knowledge Isolation] ConnectionManagerRequestService not available.');
+    const profiles = stContext.extensionSettings?.['connectionManager']?.profiles || [];
+    const profile = profiles.find(p => p.name === profileName);
+    if (!profile) {
+      console.error(`[Knowledge Isolation] No Connection Manager profile named "${profileName}" found.`);
       return null;
     }
-    const result = await ConnectionManagerRequestService.sendRequest(profileId, promptText, 600);
-    return typeof result === 'string' ? result : (result?.content ?? result?.text ?? null);
+
+    const response = await stContext.ConnectionManagerRequestService.sendRequest(
+      profile.id,
+      [{ role: 'user', content: promptText }],
+      600,
+      { stream: false, extractData: true, includePreset: true, includeInstruct: false },
+    );
+
+    if (typeof response === 'string') return response;
+    if (typeof response?.content === 'string') return response.content;
+    if (response?.choices?.[0]?.message?.content) return response.choices[0].message.content;
+    if (response?.content?.[0]?.text) return response.content[0].text;
+    return null;
   } catch (err) {
     console.error('[Knowledge Isolation] GM model call failed:', err);
     return null;
