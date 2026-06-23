@@ -110,9 +110,34 @@ export async function runInjectionPreview(onStepUpdate) {
 
 /**
  * Bootstraps the settings UI inside ST's extensions settings panel.
+ * ST does not auto-load each extension's settings.html — we fetch it
+ * ourselves and append it into one of ST's two settings containers
+ * (#extensions_settings or #extensions_settings2), matching the pattern
+ * used by other third-party extensions (see e.g. "Edit Tools" in console log).
  */
-function init() {
+async function injectSettingsHtml() {
+  try {
+    const res = await fetch('/scripts/extensions/third-party/Knowledge-isolation/settings.html');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    const mount = document.getElementById('extensions_settings2') || document.getElementById('extensions_settings');
+    if (!mount) {
+      console.error('[Knowledge Isolation] Could not find ST extensions settings container.');
+      return false;
+    }
+    mount.insertAdjacentHTML('beforeend', html);
+    return true;
+  } catch (err) {
+    console.error('[Knowledge Isolation] Failed to load settings.html:', err);
+    return false;
+  }
+}
+
+async function init() {
   const settings = loadSettings();
+  const ok = await injectSettingsHtml();
+  if (!ok) return;
+
   renderSettingsPanel({
     container: document.getElementById('knowledge_isolation_settings'),
     settings,
