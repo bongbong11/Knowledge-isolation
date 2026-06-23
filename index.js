@@ -13,7 +13,7 @@ import { event_types } from '../../../events.js';
 
 import { EXT_ID, defaultSettings, migrateSettings, newEntry, getActiveEntries } from './settings.js';
 import { buildInjectionPayload, injectIntoPrompt } from './pipeline.js';
-import { renderSettingsPanel } from './ui.js';
+import { openFloatingPanel, toggleFloatingPanel } from './ui.js';
 
 const MODULE_NAME = EXT_ID;
 
@@ -113,27 +113,84 @@ export async function runInjectionPreview(onStepUpdate) {
 }
 
 /**
- * Fetches settings.html and appends it into ST's extensions settings
- * drawer area (mirrors the pattern other extensions in this install use,
- * e.g. chatl_royal builds its drawer HTML inline; some others fetch a file).
+ * Returns Connection Manager profiles, used to populate the GM model
+ * dropdown in the floating panel's Settings tab.
  */
-async function injectSettingsHtml() {
-  if (document.getElementById('knowledge_isolation_settings')) return true;
-  try {
-    const res = await fetch(`/scripts/extensions/third-party/Knowledge-isolation/settings.html`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const html = await res.text();
-    const mount = document.getElementById('extensions_settings2') || document.getElementById('extensions_settings');
-    if (!mount) {
-      console.error(`[${MODULE_NAME}] Could not find ST extensions settings container.`);
-      return false;
-    }
-    mount.insertAdjacentHTML('beforeend', html);
-    return true;
-  } catch (err) {
-    console.error(`[${MODULE_NAME}] Failed to load settings.html:`, err);
-    return false;
+function getConnectionProfiles() {
+  const stContext = ctx();
+  return stContext.extensionSettings?.['connectionManager']?.profiles || [];
+}
+
+/**
+ * Adds a minimal entry to ST's Extensions settings drawer — just a note
+ * and a button to open the real UI, since the real UI is a standalone
+ * floating panel (not trapped inline in the drawer).
+ */
+function injectDrawerEntry() {
+  if (document.getElementById('ki-ext-settings')) return;
+  const html = `<div class="inline-drawer" id="ki-ext-settings">
+    <div class="inline-drawer-toggle inline-drawer-header">
+      <b>🔐 Knowledge Isolation</b>
+      <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+      <div style="padding:8px;display:flex;flex-direction:column;gap:8px">
+        <button id="ki-open-panel-btn" class="menu_button" style="width:100%">🔐 패널 열기</button>
+        <div style="font-size:0.76rem;color:var(--SmartThemeQuoteColor,#aaa)">
+          World/Char/User 지식 항목과 GM 모델 설정은 별도 플로팅 패널에서 관리합니다.
+          매직스틱(🪄) 메뉴에서도 열 수 있습니다.
+        </div>
+      </div>
+    </div>
+  </div>`;
+  const mount = document.getElementById('extensions_settings2') ?? document.getElementById('extensions_settings');
+  mount?.insertAdjacentHTML('beforeend', html);
+  document.getElementById('ki-open-panel-btn')?.addEventListener('click', () => openPanel());
+}
+
+/**
+ * Adds a button to the wand (extensions) menu, or falls back to a
+ * floating button if that menu container isn't found — same fallback
+ * pattern used by chatl_royal.
+ */
+function injectWandButton() {
+  if (document.getElementById('ki-wand-btn')) return;
+  const btn = document.createElement('div');
+  btn.id = 'ki-wand-btn';
+  btn.title = 'Knowledge Isolation';
+  btn.classList.add('list-group-item', 'flex-container', 'flexGap5', 'interactable');
+  btn.innerHTML = '<span>🔐</span><span>Knowledge Isolation</span>';
+
+  const target = document.getElementById('extensionsMenu');
+  if (target) {
+    target.appendChild(btn);
+  } else {
+    btn.style.cssText = 'cursor:pointer;padding:8px;position:fixed;bottom:70px;right:20px;z-index:9000;background:#1a1a24;border:2px solid #42425a;border-radius:50%;width:46px;height:46px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 16px rgba(0,0,0,.3)';
+    btn.innerHTML = '🔐';
+    document.body.appendChild(btn);
   }
+  btn.addEventListener('click', togglePanel);
+}
+
+function openPanel() {
+  const settings = ctx().extensionSettings[MODULE_NAME];
+  openFloatingPanel({
+    settings,
+    onChange: saveSettings,
+    onNewEntry: (layer, overrides) => newEntry(layer, overrides),
+    onRunPreview: runInjectionPreview,
+    getConnectionProfiles,
+  });
+}
+
+function togglePanel() {
+  toggleFloatingPanel({
+    settings: ctx().extensionSettings[MODULE_NAME],
+    onChange: saveSettings,
+    onNewEntry: (layer, overrides) => newEntry(layer, overrides),
+    onRunPreview: runInjectionPreview,
+    getConnectionProfiles,
+  });
 }
 
 /**
@@ -144,17 +201,9 @@ async function injectSettingsHtml() {
 export async function onActivate() {
   console.log(`[${MODULE_NAME}] activate`);
 
-  const settings = loadSettings();
-  const ok = await injectSettingsHtml();
-  if (!ok) return;
-
-  renderSettingsPanel({
-    container: document.getElementById('knowledge_isolation_settings'),
-    settings,
-    onChange: saveSettings,
-    onNewEntry: (layer, overrides) => newEntry(layer, overrides),
-    onRunPreview: runInjectionPreview,
-  });
+  loadSettings();
+  injectDrawerEntry();
+  injectWandButton();
 
   console.log(`[${MODULE_NAME}] ready`);
 }
