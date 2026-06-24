@@ -46,6 +46,23 @@ function persist() {
   ONCHANGE?.();
 }
 
+/**
+ * Positions a modal box exactly like chatl_royal positions its panels:
+ * a fixed pixel width clamped to 90% of viewport width, horizontally
+ * centered, placed near the top of the screen. No flexbox centering,
+ * no dvh tricks - just the same plain math that already works elsewhere
+ * in this ST install.
+ */
+function positionModal(modal, widthPx = 480, topPx = 60) {
+  const mw = Math.min(widthPx, window.innerWidth * 0.9);
+  const ml = Math.max(10, (window.innerWidth - mw) / 2);
+  const mt = Math.max(10, Math.min(topPx, window.innerHeight * 0.15));
+  modal.style.width = `${mw}px`;
+  modal.style.left = `${ml}px`;
+  modal.style.top = `${mt}px`;
+  modal.style.maxHeight = `${window.innerHeight - mt - 20}px`;
+}
+
 function applyTheme() {
   document.querySelectorAll('.ki-root').forEach((node) => {
     node.classList.toggle('light', isLight);
@@ -255,6 +272,7 @@ function openCreateModal(layer) {
 
   overlay.appendChild(modal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  positionModal(modal);
   document.body.appendChild(overlay);
 }
 
@@ -379,6 +397,7 @@ function openPreviewModal(onRunPreview) {
   ]);
   overlay.appendChild(modal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  positionModal(modal);
   document.body.appendChild(overlay);
 
   const steps = {};
@@ -449,6 +468,7 @@ function openPromptAreaModal() {
   ]);
   overlay.appendChild(modal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  positionModal(modal);
   document.body.appendChild(overlay);
 }
 
@@ -497,6 +517,7 @@ function openPromptListModal(area) {
   ]);
   overlay.appendChild(modal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  positionModal(modal);
   document.body.appendChild(overlay);
 }
 
@@ -538,6 +559,7 @@ function openPromptEditModal(area, idx) {
   ]);
   overlay.appendChild(modal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  positionModal(modal);
   document.body.appendChild(overlay);
 }
 
@@ -602,10 +624,11 @@ export function openFloatingPanel({ settings, onChange, onNewEntry, onRunPreview
   ONRUNPREVIEW = onRunPreview;
 
   const panel = el('div', { class: 'ki-root', id: 'ki-float-panel' });
-  const pw = Math.min(480, window.innerWidth * 0.94);
-  const ph = Math.min(window.innerHeight * 0.82, window.innerHeight - 40);
-  const pl = Math.max(8, window.innerWidth - pw - 16);
-  panel.style.cssText = `position:fixed;top:50px;left:${pl}px;width:${pw}px;height:${ph}px;z-index:9998;display:flex;flex-direction:column;resize:both;overflow:hidden;min-width:300px;min-height:340px;max-width:96vw;max-height:90vh;`;
+  const pw = Math.min(480, window.innerWidth * 0.9);
+  const pl = Math.max(10, (window.innerWidth - pw) / 2);
+  const pt = Math.max(10, Math.min(60, window.innerHeight * 0.1));
+  const ph = window.innerHeight - pt - 20;
+  panel.style.cssText = `position:fixed;top:${pt}px;left:${pl}px;width:${pw}px;height:${ph}px;z-index:9998;display:flex;flex-direction:column;resize:both;overflow:hidden;min-width:300px;min-height:340px;`;
 
   // Header (drag handle)
   const extToggle = el('div', { class: 'ki-ext-toggle' + (STATE.enabled ? ' on' : '') });
