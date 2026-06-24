@@ -19,6 +19,20 @@ function entriesToText(entries) {
 }
 
 /**
+ * Returns the content of whichever prompt is marked active for the given
+ * area (via settings.activePrompts[key]), falling back to the first
+ * prompt in the list if nothing is marked active yet (e.g. very first
+ * load before migrateSettings has run for an older saved settings blob).
+ */
+function getActivePromptContent(settings, key) {
+  const list = settings.prompts?.[key] || [];
+  if (!list.length) return '';
+  const activeId = settings.activePrompts?.[key];
+  const found = activeId ? list.find(p => p.id === activeId) : null;
+  return (found || list[0])?.content || '';
+}
+
+/**
  * Calls the GM model via ST's Connection Manager profile.
  * `stContext` is the object returned by SillyTavern.getContext().
  * `profileName` is the *name* of a saved Connection Manager profile
@@ -72,9 +86,9 @@ function buildWorldGmPrompt(settings, recentContext) {
   const activeWorld = getActiveEntries(settings.world.entries);
   if (!activeWorld.length) return null;
 
-  const worldGmTemplate = settings.prompts['world-gm']?.[0]?.content || '';
-  const clueGenTemplate = settings.prompts['clue-gen']?.[0]?.content || '';
-  const biasTemplate = settings.prompts['bias']?.[0]?.content || '';
+  const worldGmTemplate = getActivePromptContent(settings, 'world-gm');
+  const clueGenTemplate = getActivePromptContent(settings, 'clue-gen');
+  const biasTemplate = getActivePromptContent(settings, 'bias');
 
   const worldTruthText = entriesToText(activeWorld);
 
@@ -99,7 +113,7 @@ function buildCharInjection(settings) {
   const activeChar = getActiveEntries(settings.char.entries);
   if (!activeChar.length) return null;
 
-  const template = settings.prompts['char-inject']?.[0]?.content || '';
+  const template = getActivePromptContent(settings, 'char-inject');
   // Use the most permissive pace among active entries for the shared instruction text;
   // per-entry pace nuance can be reflected inline if needed later.
   const pace = activeChar[0]?.pace || 'normal';
@@ -125,11 +139,11 @@ function buildUserInjection(settings) {
   const blocks = [];
 
   if (unaware.length) {
-    const template = settings.prompts['user-inject']?.[0]?.content || '';
+    const template = getActivePromptContent(settings, 'user-inject');
     blocks.push(fillTemplate(template, { user_secrets: entriesToText(unaware) }));
   }
   if (aware.length) {
-    const template = settings.prompts['user-inject-aware']?.[0]?.content || '';
+    const template = getActivePromptContent(settings, 'user-inject-aware');
     blocks.push(fillTemplate(template, { user_secrets: entriesToText(aware) }));
   }
 
@@ -141,7 +155,7 @@ function buildUserInjection(settings) {
  */
 function buildClueInjection(settings, gmEventText) {
   if (!gmEventText) return null;
-  const template = settings.prompts['clue-inject']?.[0]?.content || '';
+  const template = getActivePromptContent(settings, 'clue-inject');
   return fillTemplate(template, { gm_event: gmEventText });
 }
 
