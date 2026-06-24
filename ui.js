@@ -531,13 +531,26 @@ function openPromptListModal(area) {
     }
     prompts.forEach((p, i) => {
       const isDefault = p.id === 'default';
+      const isActive = STATE.activePrompts?.[area.key] === p.id;
       const body = el('div', { class: 'ki-psi-body' }, [el('div', { class: 'ki-psi-content' }, p.content)]);
       const nameRow = [el('div', { class: 'ki-psi-name' }, p.name)];
       if (isDefault) nameRow.push(el('span', { class: 'ki-psi-locked-tag' }, '🔒 기본'));
+      const useToggle = el('div', {
+        class: 'ki-psi-use-toggle' + (isActive ? ' on' : ''),
+        title: isActive ? '사용 중' : '이 프롬프트 사용',
+        onclick: (e) => {
+          e.stopPropagation();
+          if (!STATE.activePrompts) STATE.activePrompts = {};
+          STATE.activePrompts[area.key] = p.id;
+          persist();
+          refresh();
+        },
+      });
       const header = el('div', { class: 'ki-psi-header' }, [
         el('div', { class: 'ki-psi-left' }, nameRow),
         el('div', { class: 'ki-psi-actions' }, [
-          el('button', { class: 'ki-psi-use', onclick: (e) => { e.stopPropagation(); alert(`"${p.name}" 프롬프트가 적용되었습니다.`); } }, '사용'),
+          el('span', { class: 'ki-psi-use-label' + (isActive ? ' on' : '') }, isActive ? '사용 중' : '사용'),
+          useToggle,
           el('button', { class: 'ki-psi-edit', onclick: (e) => { e.stopPropagation(); overlay.remove(); openPromptEditModal(area, i); } }, '수정'),
           ...(isDefault
             ? [el('div', { class: 'ki-psi-locked', title: '기본 프롬프트는 삭제할 수 없습니다' }, '🔒')]
@@ -545,7 +558,7 @@ function openPromptListModal(area) {
         ]),
       ]);
       header.addEventListener('click', () => body.classList.toggle('open'));
-      const item = el('div', { class: 'ki-prompt-saved-item' }, [header, body]);
+      const item = el('div', { class: 'ki-prompt-saved-item' + (isActive ? ' active' : '') }, [header, body]);
       listMount.appendChild(item);
     });
   }
@@ -648,9 +661,17 @@ function makeDraggable(panel, handle) {
 
 function makeResizable(panel, handle) {
   let r = false, rx, ry, rw, rh;
-  handle.addEventListener('mousedown', (e) => { r = true; rx = e.clientX; ry = e.clientY; rw = panel.offsetWidth; rh = panel.offsetHeight; document.body.style.userSelect = 'none'; e.preventDefault(); });
-  document.addEventListener('mousemove', (e) => { if (!r) return; panel.style.width = Math.max(380, rw + e.clientX - rx) + 'px'; panel.style.height = Math.max(420, rh + e.clientY - ry) + 'px'; });
-  document.addEventListener('mouseup', () => { r = false; document.body.style.userSelect = ''; });
+  const start = (cx, cy) => { r = true; rx = cx; ry = cy; rw = panel.offsetWidth; rh = panel.offsetHeight; document.body.style.userSelect = 'none'; };
+  const move = (cx, cy) => { if (!r) return; panel.style.width = Math.max(300, rw + cx - rx) + 'px'; panel.style.height = Math.max(340, rh + cy - ry) + 'px'; };
+  const end = () => { r = false; document.body.style.userSelect = ''; };
+
+  handle.addEventListener('mousedown', (e) => { start(e.clientX, e.clientY); e.preventDefault(); });
+  document.addEventListener('mousemove', (e) => move(e.clientX, e.clientY));
+  document.addEventListener('mouseup', end);
+
+  handle.addEventListener('touchstart', (e) => { const t = e.touches[0]; start(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchmove', (e) => { if (!r) return; const t = e.touches[0]; move(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchend', end);
 }
 
 let _panelEl = null;
