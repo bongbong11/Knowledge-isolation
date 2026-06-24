@@ -17,6 +17,7 @@ const PROMPT_AREAS = [
   { key: 'char-inject', name: 'Char Secret Injection',     desc: '캐릭터 비밀을 메인 모델에 주입하는 포맷.' },
   { key: 'clue-inject', name: 'Clue Injection Format',     desc: 'GM이 생성한 단서를 메인 모델 컨텍스트에 삽입하는 포맷.' },
   { key: 'user-inject', name: 'User Secret Injection',     desc: '페르소나 비밀을 유저 레이어에 주입하는 방식.' },
+  { key: 'user-inject-aware', name: 'User Secret (Char Aware) Injection', desc: '캐릭터도 알지만 숨기는 경우의 페르소나 비밀 주입 방식.' },
 ];
 
 let STATE = null;   // settings object reference
@@ -106,8 +107,7 @@ function paceLabel(v) {
 
 function renderEntryCard(layer, entry, meta) {
   const isBlind = layer === 'char' && entry.blind;
-  const titleText = isBlind ? '[블라인드]' : (entry.title || '(제목 없음)');
-  const contentText = isBlind ? '[내용 숨김]' : (entry.content || '(내용 없음)');
+  let revealed = false;
 
   const card = el('div', { class: 'ki-entry' + (entry.active ? '' : ' inactive') });
 
@@ -119,15 +119,38 @@ function renderEntryCard(layer, entry, meta) {
     tags.push(el('span', { class: 'ki-tag tag-mid' }, '캐릭터도 인지(숨김)'));
   }
 
+  const titleEl = el('div', { class: 'ki-entry-title' });
+  const contentEl = el('div', { class: 'ki-entry-content' });
+
+  function refreshBlindDisplay() {
+    const showReal = !isBlind || revealed;
+    titleEl.textContent = showReal ? (entry.title || '(제목 없음)') : '[블라인드]';
+    contentEl.textContent = showReal ? (entry.content || '(내용 없음)') : '[내용 숨김]';
+    titleEl.classList.toggle('blinded', isBlind && !revealed);
+    contentEl.classList.toggle('blinded', isBlind && !revealed);
+    revealBtn && (revealBtn.textContent = revealed ? '🙈' : '👁');
+    revealBtn && (revealBtn.title = revealed ? '다시 가리기' : '내용 보기');
+  }
+
+  let revealBtn = null;
+  if (isBlind) {
+    revealBtn = el('div', {
+      class: 'ki-entry-reveal',
+      title: '내용 보기',
+      onclick: (e) => { e.stopPropagation(); revealed = !revealed; refreshBlindDisplay(); },
+    }, '👁');
+  }
+
   const header = el('div', { class: 'ki-entry-header' }, [
     el('div', { class: 'ki-entry-left' }, [
       el('div', { class: `ki-entry-icon ${meta.cls}` }, meta.icon),
       el('div', { class: 'ki-entry-meta' }, [
-        el('div', { class: 'ki-entry-title' + (isBlind ? ' blinded' : '') }, titleText),
+        titleEl,
         el('div', { class: 'ki-entry-tags' }, tags),
       ]),
     ]),
     el('div', { class: 'ki-entry-actions' }, [
+      ...(revealBtn ? [revealBtn] : []),
       el('div', {
         class: 'ki-entry-toggle' + (entry.active ? ' on' : ''),
         onclick: (e) => { e.stopPropagation(); entry.active = !entry.active; persist(); rerenderLayer(layer); },
@@ -146,9 +169,8 @@ function renderEntryCard(layer, entry, meta) {
   ]);
   header.addEventListener('click', () => body.classList.toggle('open'));
 
-  const body = el('div', { class: 'ki-entry-body' }, [
-    el('div', { class: 'ki-entry-content' + (isBlind ? ' blinded' : '') }, contentText),
-  ]);
+  const body = el('div', { class: 'ki-entry-body' }, [contentEl]);
+  refreshBlindDisplay();
 
   card.appendChild(header);
   card.appendChild(body);
@@ -299,21 +321,35 @@ function renderWorldControls() {
   });
   wrap.appendChild(paceGroup);
 
-  wrap.appendChild(toggleRow('레드헤링 강제 생성', STATE.world.redHerring, (v) => { STATE.world.redHerring = v; persist(); }));
-  wrap.appendChild(toggleRow('단서 편향 방지', STATE.world.antiBias, (v) => { STATE.world.antiBias = v; persist(); }));
+  wrap.appendChild(toggleRow(
+    '레드헤링 강제 생성',
+    STATE.world.redHerring,
+    (v) => { STATE.world.redHerring = v; persist(); },
+    '진범이 아닌 다른 인물을 의심하게 만드는 가짜 단서를 주기적으로 섞어, 너무 빨리 정답이 드러나는 걸 막습니다.',
+  ));
+  wrap.appendChild(toggleRow(
+    '단서 편향 방지',
+    STATE.world.antiBias,
+    (v) => { STATE.world.antiBias = v; persist(); },
+    'GM 모델이 매번 정답 방향으로만 단서를 몰아주지 않도록, 용의자/단서를 고르게 분산시킵니다.',
+  ));
 
   return wrap;
 }
 
-function toggleRow(label, value, onChange) {
+function toggleRow(label, value, onChange, hint) {
   const toggle = el('div', { class: 'ki-toggle' + (value ? ' on' : '') });
   toggle.addEventListener('click', () => {
     const next = !toggle.classList.contains('on');
     toggle.classList.toggle('on', next);
     onChange(next);
   });
-  return el('div', { class: 'ki-toggle-row' }, [
+  const labelCol = el('div', { class: 'ki-toggle-label-col' }, [
     el('span', { class: 'ki-toggle-label' }, label),
+    ...(hint ? [el('div', { class: 'ki-toggle-hint' }, hint)] : []),
+  ]);
+  return el('div', { class: 'ki-toggle-row' }, [
+    labelCol,
     toggle,
   ]);
 }
@@ -343,8 +379,18 @@ function renderSettingsTab(opts) {
   modelSelect.addEventListener('change', () => { STATE.gm.modelProfile = modelSelect.value; persist(); });
   wrap.appendChild(modelSelect);
 
-  wrap.appendChild(toggleRow('GM 모델 매 턴 호출', STATE.gm.callEveryTurn, (v) => { STATE.gm.callEveryTurn = v; persist(); }));
-  wrap.appendChild(toggleRow('단서 중복 방지', STATE.gm.dedupeClues, (v) => { STATE.gm.dedupeClues = v; persist(); }));
+  wrap.appendChild(toggleRow(
+    'GM 모델 매 턴 호출',
+    STATE.gm.callEveryTurn,
+    (v) => { STATE.gm.callEveryTurn = v; persist(); },
+    'RP가 진행되는 매 턴마다 GM 모델을 호출해 새 단서를 생성합니다. 끄면 필요할 때만 수동으로 호출됩니다.',
+  ));
+  wrap.appendChild(toggleRow(
+    '단서 중복 방지',
+    STATE.gm.dedupeClues,
+    (v) => { STATE.gm.dedupeClues = v; persist(); },
+    '이전 턴들과 같은 단서가 반복 생성되지 않도록 막습니다.',
+  ));
 
   wrap.appendChild(el('div', { class: 'ki-model-notice' },
     '⚠️ 메인 RP 모델과 다른 별도 모델이 반드시 필요합니다. Connection Manager에서 GM용 프로필을 먼저 만들어두세요.'));
@@ -484,13 +530,18 @@ function openPromptListModal(area) {
       return;
     }
     prompts.forEach((p, i) => {
+      const isDefault = p.id === 'default';
       const body = el('div', { class: 'ki-psi-body' }, [el('div', { class: 'ki-psi-content' }, p.content)]);
+      const nameRow = [el('div', { class: 'ki-psi-name' }, p.name)];
+      if (isDefault) nameRow.push(el('span', { class: 'ki-psi-locked-tag' }, '🔒 기본'));
       const header = el('div', { class: 'ki-psi-header' }, [
-        el('div', { class: 'ki-psi-name' }, p.name),
+        el('div', { class: 'ki-psi-left' }, nameRow),
         el('div', { class: 'ki-psi-actions' }, [
           el('button', { class: 'ki-psi-use', onclick: (e) => { e.stopPropagation(); alert(`"${p.name}" 프롬프트가 적용되었습니다.`); } }, '사용'),
           el('button', { class: 'ki-psi-edit', onclick: (e) => { e.stopPropagation(); overlay.remove(); openPromptEditModal(area, i); } }, '수정'),
-          el('div', { class: 'ki-psi-del', onclick: (e) => { e.stopPropagation(); STATE.prompts[area.key].splice(i, 1); persist(); refresh(); } }, '×'),
+          ...(isDefault
+            ? [el('div', { class: 'ki-psi-locked', title: '기본 프롬프트는 삭제할 수 없습니다' }, '🔒')]
+            : [el('div', { class: 'ki-psi-del', onclick: (e) => { e.stopPropagation(); STATE.prompts[area.key].splice(i, 1); persist(); refresh(); } }, '×')]),
         ]),
       ]);
       header.addEventListener('click', () => body.classList.toggle('open'));
@@ -503,9 +554,11 @@ function openPromptListModal(area) {
   const createBtn = el('button', { class: 'ki-create-btn' }, '+ 새 프롬프트 작성');
   createBtn.addEventListener('click', () => { overlay.remove(); openPromptEditModal(area, -1); });
 
+  const backBtn = el('div', { class: 'ki-modal-back', onclick: () => { overlay.remove(); openPromptAreaModal(); } }, '←');
+
   const modal = el('div', { class: 'ki-modal' }, [
     el('div', { class: 'ki-modal-header' }, [
-      el('div', { class: 'ki-modal-title' }, area.name),
+      el('div', { class: 'ki-modal-title-wrap' }, [backBtn, el('div', { class: 'ki-modal-title' }, area.name)]),
       el('div', { class: 'ki-modal-close', onclick: () => overlay.remove() }, '×'),
     ]),
     el('div', { class: 'ki-modal-body' }, [
@@ -528,9 +581,11 @@ function openPromptEditModal(area, idx) {
   const contentInput = el('textarea', { class: 'ki-textarea-lg', value: existing?.content || '' });
   contentInput.value = existing?.content || '';
 
+  const backBtn = el('div', { class: 'ki-modal-back', onclick: () => { overlay.remove(); openPromptListModal(area); } }, '←');
+
   const modal = el('div', { class: 'ki-modal' }, [
     el('div', { class: 'ki-modal-header' }, [
-      el('div', { class: 'ki-modal-title' }, idx === -1 ? `${area.name} — 새 프롬프트` : `${area.name} — 수정`),
+      el('div', { class: 'ki-modal-title-wrap' }, [backBtn, el('div', { class: 'ki-modal-title' }, idx === -1 ? `${area.name} — 새 프롬프트` : `${area.name} — 수정`)]),
       el('div', { class: 'ki-modal-close', onclick: () => overlay.remove() }, '×'),
     ]),
     el('div', { class: 'ki-modal-body' }, [
@@ -540,7 +595,7 @@ function openPromptEditModal(area, idx) {
       contentInput,
     ]),
     el('div', { class: 'ki-modal-footer' }, [
-      el('button', { class: 'ki-btn-ghost', onclick: () => overlay.remove() }, '취소'),
+      el('button', { class: 'ki-btn-ghost', onclick: () => { overlay.remove(); openPromptListModal(area); } }, '취소'),
       el('button', {
         class: 'ki-btn-primary',
         onclick: () => {
