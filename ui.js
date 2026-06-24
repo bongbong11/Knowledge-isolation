@@ -561,10 +561,10 @@ function makeDraggable(panel, handle) {
     panel.style.top = Math.max(0, Math.min(vh - 60, st + cy - sy)) + 'px';
   };
   const up = () => { drag = false; document.body.style.userSelect = ''; };
-  handle.addEventListener('mousedown', (e) => { if (e.target.closest('button,.ki-ext-toggle')) return; go(e.clientX, e.clientY); });
+  handle.addEventListener('mousedown', (e) => { if (e.target.closest('button,.ki-ext-toggle,.ki-theme-toggle,.ki-panel-close,.ki-panel-resize')) return; go(e.clientX, e.clientY); });
   document.addEventListener('mousemove', (e) => mv(e.clientX, e.clientY));
   document.addEventListener('mouseup', up);
-  handle.addEventListener('touchstart', (e) => { if (e.target.closest('button,.ki-ext-toggle')) return; const t = e.touches[0]; go(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  handle.addEventListener('touchstart', (e) => { if (e.target.closest('button,.ki-ext-toggle,.ki-theme-toggle,.ki-panel-close,.ki-panel-resize')) return; const t = e.touches[0]; go(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
   document.addEventListener('touchmove', (e) => { if (!drag) return; mv(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
   document.addEventListener('touchend', up);
 }
@@ -602,7 +602,10 @@ export function openFloatingPanel({ settings, onChange, onNewEntry, onRunPreview
   ONRUNPREVIEW = onRunPreview;
 
   const panel = el('div', { class: 'ki-root', id: 'ki-float-panel' });
-  panel.style.cssText = 'position:fixed;top:60px;right:20px;width:480px;height:78vh;z-index:9998;display:flex;flex-direction:column;resize:both;overflow:hidden;min-width:380px;min-height:420px;';
+  const pw = Math.min(480, window.innerWidth * 0.94);
+  const ph = Math.min(window.innerHeight * 0.82, window.innerHeight - 40);
+  const pl = Math.max(8, window.innerWidth - pw - 16);
+  panel.style.cssText = `position:fixed;top:50px;left:${pl}px;width:${pw}px;height:${ph}px;z-index:9998;display:flex;flex-direction:column;resize:both;overflow:hidden;min-width:300px;min-height:340px;max-width:96vw;max-height:90vh;`;
 
   // Header (drag handle)
   const extToggle = el('div', { class: 'ki-ext-toggle' + (STATE.enabled ? ' on' : '') });
