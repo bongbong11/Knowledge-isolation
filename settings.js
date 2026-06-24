@@ -18,6 +18,12 @@ export const EXT_ID = 'knowledge-isolation';
 // }
 
 export function defaultSettings() {
+  const prompts = JSON.parse(JSON.stringify(DEFAULT_PROMPTS));
+  const activePrompts = {};
+  for (const key of Object.keys(prompts)) {
+    activePrompts[key] = prompts[key]?.[0]?.id || null;
+  }
+
   return {
     enabled: true,
     outletName: 'KI_Inject',
@@ -43,7 +49,11 @@ export function defaultSettings() {
       entries: [],
     },
 
-    prompts: JSON.parse(JSON.stringify(DEFAULT_PROMPTS)),
+    prompts,
+    // Which prompt id is "in use" per area (world-gm, clue-gen, bias,
+    // char-inject, clue-inject, user-inject, user-inject-aware). Only one
+    // can be active per area - toggling one on switches the others off.
+    activePrompts,
   };
 }
 
@@ -61,6 +71,7 @@ export function migrateSettings(raw) {
   merged.char = { ...defaults.char, ...(raw.char || {}) };
   merged.user = { ...defaults.user, ...(raw.user || {}) };
   merged.prompts = { ...defaults.prompts, ...(raw.prompts || {}) };
+  merged.activePrompts = { ...defaults.activePrompts, ...(raw.activePrompts || {}) };
 
   merged.world.entries = Array.isArray(raw.world?.entries) ? raw.world.entries : [];
   merged.char.entries = Array.isArray(raw.char?.entries) ? raw.char.entries : [];
