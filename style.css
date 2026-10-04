@@ -1,4 +1,8 @@
-.kv-root { font-size: 11px; line-height: 1.3; padding: 7px; border: 1px solid var(--SmartThemeBorderColor, #777); border-radius: 6px; margin: 6px 0; }
+#kv-backdrop { position: fixed; inset: 0; z-index: 9998; background: rgba(0, 0, 0, .45); }
+#kv-backdrop[hidden], #kv-popup[hidden] { display: none !important; }
+#kv-popup { position: fixed; z-index: 9999; top: 10vh; left: 50%; transform: translateX(-50%); width: min(390px, 94vw); max-height: 80vh; overflow: auto; color: var(--SmartThemeBodyColor, #eee); background: var(--SmartThemeBlurTintColor, #25252b); border: 1px solid var(--SmartThemeBorderColor, #777); border-radius: 8px; box-shadow: 0 12px 36px rgba(0, 0, 0, .45); }
+.kv-launcher-fixed { position: fixed; right: 14px; bottom: 74px; z-index: 9000; padding: 7px; border-radius: 8px; background: var(--SmartThemeBlurTintColor, #25252b); border: 1px solid var(--SmartThemeBorderColor, #777); cursor: pointer; }
+.kv-root { font-size: 11px; line-height: 1.3; padding: 7px; margin: 0; }
 .kv-root * { box-sizing: border-box; }
 .kv-header, .kv-row-top, .kv-actions, .kv-form-actions, .kv-chips { display: flex; align-items: center; gap: 4px; }
 .kv-header { justify-content: space-between; font-size: 12px; }

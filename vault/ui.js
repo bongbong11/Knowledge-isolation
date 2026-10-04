@@ -14,15 +14,14 @@ const button = (label, action, title = label) => {
   return element;
 };
 
-export function mountVault({ context, settings, onSettingsChange, onCardsChange }) {
-  const host = document.getElementById('extensions_settings2') || document.getElementById('extensions_settings');
-  if (!host || document.getElementById('kv-root')) return () => {};
+export function mountVault({ host, context, settings, onSettingsChange, onCardsChange, onClose }) {
   const root = node('section', 'kv-root'); root.id = 'kv-root';
   const header = node('div', 'kv-header');
   header.append(node('strong', '', '🔐 정보금고 / Knowledge Vault'));
   const enabled = node('input'); enabled.type = 'checkbox'; enabled.checked = settings.enabled;
   enabled.addEventListener('change', () => { settings.enabled = enabled.checked; onSettingsChange(); });
   const enabledLabel = node('label', 'kv-on', '사용'); enabledLabel.prepend(enabled); header.append(enabledLabel);
+  header.append(button('×', onClose, '닫기'));
   root.append(header);
   const hint = node('p', 'kv-hint', '현재 채팅에만 저장 · 목록에 없는 인물은 모름 · 씬 판정 전에는 원문 가림');
   root.append(hint);
