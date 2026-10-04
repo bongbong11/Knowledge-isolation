@@ -7,7 +7,7 @@
   "css": "style.css",
   "generate_interceptor": "KnowledgeVaultBeforeGenerate",
   "author": "bongbong11",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "homePage": "https://github.com/bongbong11/Knowledge-isolation",
   "auto_update": true
 }

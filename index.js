@@ -1,4 +1,4 @@
-import { event_types, setExtensionPrompt } from '../../../script.js';
+import { event_types, setExtensionPrompt } from '../../../../script.js';
 import { buildPayload } from './vault/core.js';
 import { getSettings, readCards } from './vault/store.js';
 import { mountVault } from './vault/ui.js';
