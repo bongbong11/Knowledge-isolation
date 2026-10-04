@@ -12,10 +12,8 @@ export function clampGeometry(value, viewport) {
   return { left, top, width, height };
 }
 
-export function createPopup({ render }) {
-  const backdrop = document.createElement('div');
-  backdrop.id = 'kv-backdrop'; backdrop.hidden = true;
-  const panel = document.createElement('div');
+export function createPopup({ render, canOpen = () => false }) {
+  const panel = document.createElement('dialog');
   panel.id = 'kv-popup'; panel.hidden = true;
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-label', '정보금고');
@@ -26,7 +24,7 @@ export function createPopup({ render }) {
   resizeHandle.setAttribute('aria-label', resizeHandle.title);
   resizeHandle.textContent = '⤡';
   panel.append(resizeHandle);
-  document.body.append(backdrop, panel);
+  document.body.append(panel);
 
   const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
   let geometry;
@@ -82,23 +80,20 @@ export function createPopup({ render }) {
   });
   window.addEventListener('resize', () => applyGeometry(geometry, true));
 
-  const close = () => { backdrop.hidden = true; panel.hidden = true; };
-  const open = () => { render(); backdrop.hidden = false; panel.hidden = false; panel.querySelector('.kv-header button')?.focus(); };
-  backdrop.addEventListener('click', close);
-  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !panel.hidden) close(); });
-
-  const launcher = document.createElement('div');
-  launcher.id = 'kv-wand-button';
-  launcher.className = 'list-group-item flex-container flexGap5 interactable';
-  launcher.setAttribute('role', 'button'); launcher.setAttribute('tabindex', '0');
-  launcher.setAttribute('aria-label', '정보금고 열기');
-  launcher.innerHTML = '<span aria-hidden="true">🔐</span><span>정보금고</span>';
-  launcher.addEventListener('click', () => panel.hidden ? open() : close());
-  launcher.addEventListener('keydown', event => {
-    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); panel.hidden ? open() : close(); }
+  const close = () => { if (panel.open) panel.close(); panel.hidden = true; };
+  const open = () => {
+    if (!canOpen()) return false;
+    render(); panel.hidden = false;
+    if (!panel.open) panel.showModal();
+    panel.querySelector('.kv-header button')?.focus();
+    return true;
+  };
+  panel.addEventListener('cancel', event => { event.preventDefault(); close(); });
+  panel.addEventListener('close', () => { panel.hidden = true; });
+  panel.addEventListener('click', event => {
+    if (event.target !== panel) return;
+    const rect = panel.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
   });
-  const menu = document.getElementById('extensionsMenu');
-  if (menu) menu.append(launcher);
-  else { launcher.classList.add('kv-launcher-fixed'); document.body.append(launcher); }
-  return { panel, close };
+  return { panel, close, open };
 }

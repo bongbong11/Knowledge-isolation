@@ -6,19 +6,22 @@ import { createPopup } from './vault/popup.js';
 import { getSettings, readActors, readCards } from './vault/store.js';
 import { nameKey } from './vault/identity.js';
 import { isRpTurn } from './vault/turn.js';
+import { canUseVault } from './vault/access.js';
+import { mountVaultLauncher } from './vault/launcher.js';
 import { mountVault } from './vault/ui.js';
 
 const PROMPT_KEY = 'knowledge-vault-boundary';
 const context = () => SillyTavern.getContext();
 let pending = null;
 let render = () => {};
+let popup = null;
 let runStatus = { phase: 'idle' };
 let registeredPayload = '';
 let pendingMessages = null;
 let analysisStatus = { phase: 'idle' };
 let auditAllowed = true;
 let selectionCursor = 0;
-const analysis = createVaultAnalysis({ context, enabled: () => auditAllowed && getSettings(context()).enabled,
+const analysis = createVaultAnalysis({ context, enabled: () => canUseVault() && auditAllowed && getSettings(context()).enabled,
   onStatus: status => { analysisStatus = status; render(); } });
 function updateRunStatus(status) {
   runStatus = { ...status, at: Date.now() };
@@ -44,7 +47,7 @@ function observeRequest(data) {
 }
 
 function activeCards() {
-  return getSettings(context()).enabled ? readCards(context()).filter(card => card.enabled && card.route !== 'disabled') : [];
+  return canUseVault() && getSettings(context()).enabled ? readCards(context()).filter(card => card.enabled && card.route !== 'disabled') : [];
 }
 function activeRevision() {
   const cards = activeCards();
@@ -55,6 +58,13 @@ function activeRevision() {
 // is consumed once; it cannot carry a raw fact into another turn or chat.
 globalThis.KnowledgeVaultV1 = Object.freeze({
   version: '0.1.0',
+  isEnabled: () => canUseVault() && getSettings(context()).enabled,
+  open: () => canUseVault() && popup?.open() === true,
+  refreshAccess: () => {
+    if (canUseVault()) return;
+    analysis.cancel(); pending = null; clearReceipt(); popup?.close();
+    setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0);
+  },
   getRevision: activeRevision,
   getSceneInput: () => {
     const cards = activeCards();
@@ -63,7 +73,7 @@ globalThis.KnowledgeVaultV1 = Object.freeze({
     selectionCursor = (selectionCursor + 12) % cards.length;
     const selected = ordered.slice(0, 12);
     updateRunStatus({ phase: 'reading', candidateCount: selected.length, unassessedCount: cards.length - selected.length });
-    return selected.map(card => ({ secret_id: card.id, title: card.title, text: card.text.slice(0, 2000), knownBy: [...card.knownBy], truthScope: card.truthScope, route: card.route,
+    return selected.map(card => ({ secret_id: card.id, title: card.title, text: card.text.slice(0, 2000), knownBy: [...card.knownBy], truthScope: card.truthScope, public:card.public, route: card.route,
       holderAliases: readActors(context()).filter(actor => card.knownBy.some(name=>nameKey(name)===nameKey(actor.name))).map(actor=>({name:actor.name,aliases:actor.aliases.slice(0,10)})) }));
   },
   publishSceneResult: ({ knowledge_vault = [], vault_injections = [] } = {}) => {
@@ -86,13 +96,13 @@ globalThis.KnowledgeVaultBeforeGenerate = async (_chat, _contextSize, _abort, ty
   const result = pending?.chatMetadata === current.chatMetadata && pending.revision === activeRevision() ? pending : null;
   pending = null;
   const cards = readCards(current);
-  const enabled = getSettings(current).enabled;
+  const enabled = canUseVault() && getSettings(current).enabled;
   const payload = enabled ? buildPayload(cards, result?.knowledge_vault, result?.vault_injections) : '';
   clearReceipt();
   try {
     await setExtensionPrompt(PROMPT_KEY, payload, 1, 0, false, 0);
     registeredPayload = payload;
-    const selection = payloadSelection(cards, result?.knowledge_vault, result?.vault_injections);
+    const selection = enabled ? payloadSelection(cards, result?.knowledge_vault, result?.vault_injections) : {selected:[],omitted:[]};
     const includedIds = enabled ? selection.selected.map(item => item.card.id) : [];
     updateRunStatus({ phase: 'registered', source: result ? 'scene-reader' : 'fallback', assessedCount: result?.knowledge_vault?.length || 0, relevantCount: result?.knowledge_vault?.filter(item => item.relevant).length || 0, sceneResults: result?.knowledge_vault || [], includedIds, omittedCount: selection.omitted.length, enabled });
   } catch (error) {
@@ -104,7 +114,8 @@ globalThis.KnowledgeVaultBeforeGenerate = async (_chat, _contextSize, _abort, ty
 jQuery(() => {
   const current = context();
   const settings = getSettings(current);
-  const popup = createPopup({ render: () => render() });
+  popup = createPopup({ render: () => render(), canOpen: canUseVault });
+  mountVaultLauncher();
   render = mountVault({
     host: popup.panel,
     context,

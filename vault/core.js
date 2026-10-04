@@ -1,4 +1,5 @@
 import { normalizeTag, uniqueTags } from './identity.js';
+import { WORLD_FACT_RULES } from './knowledge-scope.js';
 export const ROUTES = ['auto', 'world', 'user', 'character', 'npc', 'shared', 'disabled'];
 
 const RESERVED = new Map([
@@ -96,18 +97,18 @@ export function selectedCards(cards, sceneResults = [], decisions = []) {
 export const PAYLOAD_LIMIT = 10000;
 export function payloadSelection(cards, sceneResults = [], decisions = []) {
   const selected = [], omitted = [];
-  let length = HEADER.length;
   for (const item of selectedCards(cards, sceneResults, decisions)) {
-    const size = JSON.stringify(item.card.text).length + item.card.title.length + item.card.id.length + item.card.knownBy.join(', ').length + 260;
-    if (selected.length >= 12 || length + size > PAYLOAD_LIMIT) omitted.push(item.card.id);
-    else { selected.push(item); length += size; }
+    if (selected.length >= 12 || renderPayload([...selected, item]).length > PAYLOAD_LIMIT) omitted.push(item.card.id);
+    else selected.push(item);
   }
   return { selected, omitted };
 }
-export function buildPayload(cards, sceneResults = [], decisions = []) {
+function renderPayload(selected) {
   const sections = new Map();
-  for (const { card, route, scene, choice } of payloadSelection(cards, sceneResults, decisions).selected) {
+  let worldReality = false;
+  for (const { card, route, scene, choice } of selected) {
     const rawAllowed = choice?.mode === 'scoped_fact' || (choice?.mode === 'raw_boundary' && canSendRaw(card, scene));
+    if (rawAllowed && card.truthScope === 'world' && !card.public) worldReality = true;
     const holders = card.knownBy.map(displayHolder);
     const known = holders.length ? holders.join(', ') : 'no character';
     const lines = [
@@ -115,11 +116,15 @@ export function buildPayload(cards, sceneResults = [], decisions = []) {
       `Title: ${card.title}`,
       card.public ? 'Access: public background fact; use only where plausible.' : `Known only by: ${known}.`,
     ];
+    if (card.truthScope === 'world' && !card.public) lines.push('Reality: objective world fact, not public knowledge.');
     if (rawAllowed) lines.push(`Fact data: ${JSON.stringify(card.text)}`);
     else lines.push('The restricted fact is withheld from this generation. Do not invent its content.');
     if (!sections.has(route)) sections.set(route, []);
     sections.get(route).push(lines.join('\n'));
   }
   if (!sections.size) return '';
-  return [HEADER, ...Object.entries(SECTION).filter(([route]) => sections.has(route)).map(([route, title]) => `[${title}]\n${sections.get(route).join('\n\n')}`)].join('\n\n');
+  return [HEADER, ...(worldReality ? [WORLD_FACT_RULES] : []), ...Object.entries(SECTION).filter(([route]) => sections.has(route)).map(([route, title]) => `[${title}]\n${sections.get(route).join('\n\n')}`)].join('\n\n');
+}
+export function buildPayload(cards, sceneResults = [], decisions = []) {
+  return renderPayload(payloadSelection(cards, sceneResults, decisions).selected);
 }

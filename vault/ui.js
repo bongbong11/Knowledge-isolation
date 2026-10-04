@@ -3,6 +3,8 @@ import { readCards, writeCards } from './store.js';
 import { uniqueTags } from './identity.js';
 import { acquisitionLabel } from './acquisition.js';
 import { editActorAliases } from './actor-editor.js';
+import { KNOWLEDGE_SCOPES, knowledgeScope, knowledgeScopeFields, knowledgeScopeSummary } from './knowledge-scope.js';
+import { createMascotIcon } from './mascot.js';
 
 const holderLabel = value => value === 'user' ? '페르소나' : value === 'character' ? '캐릭터' : value;
 const node = (tag, className, value) => {
@@ -22,14 +24,16 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
   let renderedMetadata = context().chatMetadata;
   const root = node('section', 'kv-root'); root.id = 'kv-root';
   const header = node('div', 'kv-header');
-  header.append(node('strong', '', '🔐 정보금고 / Knowledge Vault 0.1.9'));
+  const title = node('strong', 'kv-title');
+  title.append(createMascotIcon(), node('span', '', '정보금고 / Knowledge Vault 0.1.10'));
+  header.append(title);
   const headerActions = node('div', 'kv-header-actions');
   const enabled = node('input'); enabled.type = 'checkbox'; enabled.checked = settings.enabled;
   enabled.addEventListener('change', () => { settings.enabled = enabled.checked; onSettingsChange(); });
   const enabledLabel = node('label', 'kv-on', '사용'); enabledLabel.prepend(enabled);
   headerActions.append(enabledLabel, button('×', onClose, '닫기'));
   header.append(headerActions);
-  root.append(header, node('p', 'kv-hint', '장면에 필요한 정보를 꺼내고, 누가 아는지 따로 지킵니다.'));
+  root.append(header, node('p', 'kv-hint', '당신의 비밀을 지켜드립니다.'));
 
   const runBox = node('section', 'kv-run');
   const cardSummary = node('strong', 'kv-run-summary');
@@ -144,7 +148,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
       top.append(toggle, name); row.append(top);
       const meta = node('div', 'kv-row-meta');
       const holders = card.knownBy.map(holderLabel);
-      meta.append(node('span', '', card.public ? '세계 공개 정보' : holders.length ? holders.join(', ') : '비공개 세계 사실'));
+      meta.append(node('span', '', card.public ? '세계 공개 정보' : card.truthScope === 'world' ? knowledgeScopeSummary(card) + (holders.length ? ` · ${holders.join(', ')}` : '') : holders.join(', ')));
       meta.append(node('small', 'kv-card-status', cardStatus(card, status)));
       row.append(meta); list.append(row);
     }
@@ -154,7 +158,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
       head.append(node('strong', '', selected.title), node('small', 'kv-card-status', cardStatus(selected, status)));
       view.append(head, node('div', 'kv-fact', selected.text));
       const holders = node('div', 'kv-detail-holders'); holders.append(node('strong', '', '아는 대상'));
-      if (selected.public) holders.append(node('span', 'kv-holder-chip', '세계 공개 정보'));
+      if (selected.public || selected.truthScope === 'world') holders.append(node('span', 'kv-holder-chip', knowledgeScopeSummary(selected)));
       const aliasHost = node('div', 'kv-alias-editor');
       for (const holder of selected.knownBy) {
         if (['user','character'].includes(holder)) holders.append(node('span', 'kv-holder-chip', holderLabel(holder)));
@@ -196,8 +200,14 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
     const tagRow = node('div', 'kv-tag-row');
     const tagInput = node('input'); tagInput.placeholder = 'NPC 영어 이름'; tagInput.setAttribute('aria-label', '다른 아는 대상');
     tagRow.append(tagInput, button('추가', addTag));
-    const world = node('input'); world.type = 'checkbox'; world.checked = card.public;
-    const worldLabel = node('label', 'kv-world', '세계 공개 정보'); worldLabel.prepend(world);
+    const scope = node('select', 'kv-scope'); scope.setAttribute('aria-label', '정보 범위');
+    for (const [value, definition] of Object.entries(KNOWLEDGE_SCOPES)) {
+      const option = node('option', '', definition.label); option.value = value; scope.append(option);
+    }
+    scope.value = knowledgeScope(card);
+    const scopeNote = node('small', 'kv-run-note');
+    const updateScopeNote = () => { scopeNote.textContent = KNOWLEDGE_SCOPES[scope.value].note; };
+    scope.addEventListener('change', updateScopeNote); updateScopeNote();
     const footer = node('div', 'kv-form-actions');
     const save = node('button', 'kv-button kv-primary', '저장'); save.type = 'submit';
     footer.append(save, button('취소', () => { editor.hidden = true; editor.replaceChildren(); render(); }));
@@ -209,7 +219,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
     }
     function addHolder(value) {
       const tag = normalizeHolder(value);
-      if (tag === 'world') { world.checked = true; return; }
+      if (tag === 'world') { scope.value = 'world'; updateScopeNote(); return; }
       if (tag && !tags.some(item => item.toLocaleLowerCase() === tag.toLocaleLowerCase())) tags.push(tag);
       showChips();
     }
@@ -221,15 +231,16 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
     });
     showChips();
     editor.append(head, node('label', '', '이름'), title, node('label', '', '정보 내용'), fact,
-      node('label', '', '아는 대상'), presets, chips, tagRow, worldLabel, footer);
+      node('label', '', '정보 범위'), scope, scopeNote,
+      node('label', '', '아는 대상'), presets, chips, tagRow, footer);
     if (card.acquisitions.length) editor.insertBefore(node('small', 'kv-run-note', '장면에서 추가된 태그는 습득 이력으로 관리합니다. 정보 내용을 바꾸면 이전 습득 기록을 다시 사용하지 않습니다.'), footer);
     editor.onsubmit = async event => {
       event.preventDefault(); addTag();
       const changedFact = card.text !== fact.value.trim();
       const acquisitions = changedFact ? [] : card.acquisitions;
       const updated = normalizeCard({ ...card, title: title.value, text: fact.value, knownBy: uniqueTags([...tags, ...acquisitions.filter(item => item.scope === 'full').map(item => item.actorName)]), manualKnownBy: tags, acquisitions,
-        public: world.checked, truthScope: world.checked ? 'world' : card.truthScope, route: 'auto' });
-      if (!updated.knownBy.length && updated.truthScope !== 'world') { message.textContent = '아는 대상 또는 세계 사실을 선택하세요.'; return; }
+        ...knowledgeScopeFields(scope.value), route: 'auto' });
+      if (!updated.knownBy.length && updated.truthScope !== 'world') { message.textContent = '인물별 비밀은 아는 대상을 선택하세요. 아무도 모르는 사실은 정보 범위를 세계의 실제 사실로 선택하세요.'; return; }
       const cards = readCards(context());
       const saved = await persist(existing ? cards.map(item => item.id === card.id ? updated : item) : [...cards, updated], updated.id);
       if (saved) { editor.hidden = true; editor.replaceChildren(); render(); }

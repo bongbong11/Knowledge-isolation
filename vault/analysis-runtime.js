@@ -47,7 +47,7 @@ export function createVaultAnalysis({ context, enabled, onStatus = () => {} }) {
     const request = { cards: selected, actors, identity, sourceText, sourceTruncated, date: sceneDate(outputText), metadata: ctx.chatMetadata, revision: rev, key, epoch, omitted };
     leases.set(token, request); if (leases.size > 8) leases.delete(leases.keys().next().value);
     onStatus({ phase: 'analyzing', checkedCount: selected.length, unresolvedCount: omitted.length });
-    return { token, system: ACQUISITION_SYSTEM, input: { cards: selected.map(({ id, text, knownBy }) => ({ id, fact: text, known_actor_ids: actors.filter(actor => knownBy.some(name => actor.name.toLowerCase() === name.toLowerCase())).map(actor => actor.id) })), actors }, count: selected.length };
+    return { token, system: ACQUISITION_SYSTEM, input: { cards: selected.map(({ id, text, knownBy, truthScope }) => ({ id, fact: text, truthScope, known_actor_ids: actors.filter(actor => knownBy.some(name => actor.name.toLowerCase() === name.toLowerCase())).map(actor => actor.id) })), actors }, count: selected.length };
   }
   function isCurrent(token) {
     const request = leases.get(token), ctx = context();
@@ -66,7 +66,7 @@ export function createVaultAnalysis({ context, enabled, onStatus = () => {} }) {
     if (!cards.length) return null;
     request.repaired = true;
     return { cardIds: cards.map(card => card.id), system: ACQUISITION_SYSTEM,
-      input: { cards: cards.map(({id,text,knownBy}) => ({id,fact:text,knownBy})), actors: request.actors } };
+      input: { cards: cards.map(({id,text,knownBy,truthScope}) => ({id,fact:text,knownBy,truthScope})), actors: request.actors } };
   }
   async function commit(token, result) {
     return enqueue(async () => {
