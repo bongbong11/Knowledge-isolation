@@ -47,6 +47,13 @@ export function displayHolder(holder) {
   return holder === 'user' ? '{{user}}' : holder === 'character' ? '{{char}}' : holder;
 }
 
+// Optional cache key for sibling extensions. It carries no authority to edit cards.
+export function cardRevision(cards) {
+  return JSON.stringify((Array.isArray(cards) ? cards : []).map(normalizeCard).filter(validCard)
+    .filter(card => card.enabled && card.route !== 'disabled')
+    .map(({ id, title, text, knownBy, truthScope, route }) => ({ id, title, text, knownBy, truthScope, route })));
+}
+
 // A route selects a prompt section; it never grants anyone access to the fact.
 export function canSendRaw(card, scene) {
   if (!scene || scene.scene_access !== 'holders_only' || scene.participantsComplete !== true) return false;

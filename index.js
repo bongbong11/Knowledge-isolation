@@ -1,5 +1,5 @@
 import { event_types, setExtensionPrompt } from '../../../../script.js';
-import { buildPayload, selectedCards } from './vault/core.js';
+import { buildPayload, cardRevision, selectedCards } from './vault/core.js';
 import { checkPromptReceipt } from './vault/receipt.js';
 import { getSettings, readCards } from './vault/store.js';
 import { mountVault } from './vault/ui.js';
@@ -73,6 +73,7 @@ function activeCards() {
 // is consumed once; it cannot carry a raw fact into another turn or chat.
 globalThis.KnowledgeVaultV1 = Object.freeze({
   version: '0.1.0',
+  getRevision: () => getSettings(context()).enabled ? cardRevision(readCards(context())) : '',
   getSceneInput: () => {
     const cards = activeCards();
     updateRunStatus({ phase: 'reading', candidateCount: cards.length });

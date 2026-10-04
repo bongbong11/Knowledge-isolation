@@ -38,6 +38,7 @@ SillyTavern의 **Extensions → Install Extension**에서 이 저장소 URL을 �
 브라우저의 `window.KnowledgeVaultV1`이 다음 메서드를 제공합니다.
 
 - `getSceneInput()` — 활성 카드의 ID, 원문, 보유자, 세계 사실 여부를 기존 판독 요청용으로 반환
+- `getRevision()` — 향후 씬판독기가 현재 채팅의 활성 카드 변경을 감지하고 기존 판정 재사용 여부를 갱신할 수 있도록 변경 상태 반환. 현재 씬판독기 Hub 0.1.15는 이 메서드를 아직 사용하지 않습니다.
 - `publishSceneResult({ knowledge_vault, vault_injections })` — 같은 생성 회차의 판정 결과를 한 번만 전달
 - `buildPayload(...)` — 순수한 경계 문구 조립
 

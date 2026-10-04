@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeCard, resolveRoute, buildPayload, canSendRaw, selectedCards } from '../vault/core.js';
+import { normalizeCard, resolveRoute, buildPayload, canSendRaw, cardRevision, selectedCards } from '../vault/core.js';
 import { checkPromptReceipt } from '../vault/receipt.js';
 
 test('overlapping holders and world truth keep separate access and routing', () => {
@@ -52,4 +52,12 @@ test('prompt receipt distinguishes registered text from final request content', 
   assert.equal(checkPromptReceipt({ messages: [{ content: 'Known only by: Ari, Mia.' }] }, payload, names), 'confirmed');
   assert.equal(checkPromptReceipt({ messages: [{ content: 'Other instructions' }] }, payload, names), 'missing');
   assert.equal(checkPromptReceipt({ messages: [] }, payload, names), 'unavailable');
+});
+
+test('future scene-reader cache key changes with active vault facts', () => {
+  const card = normalizeCard({ id: 'one', title: 'Code', text: '7314', knownBy: ['Olivia'] });
+  assert.equal(cardRevision([card]), cardRevision([{ ...card }]));
+  assert.notEqual(cardRevision([card]), cardRevision([{ ...card, text: '7301' }]));
+  assert.notEqual(cardRevision([card]), cardRevision([{ ...card, knownBy: ['Duke'] }]));
+  assert.equal(cardRevision([{ ...card, enabled: false }]), '[]');
 });

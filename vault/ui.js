@@ -17,7 +17,7 @@ const button = (label, action, title = label) => {
 export function mountVault({ host, context, settings, getRunStatus, onSettingsChange, onCardsChange, onClose }) {
   const root = node('section', 'kv-root'); root.id = 'kv-root';
   const header = node('div', 'kv-header');
-  header.append(node('strong', '', '🔐 정보금고 / Knowledge Vault 0.1.6'));
+  header.append(node('strong', '', '🔐 정보금고 / Knowledge Vault 0.1.7'));
   const enabled = node('input'); enabled.type = 'checkbox'; enabled.checked = settings.enabled;
   enabled.addEventListener('change', () => { settings.enabled = enabled.checked; onSettingsChange(); });
   const enabledLabel = node('label', 'kv-on', '사용'); enabledLabel.prepend(enabled); header.append(enabledLabel);
