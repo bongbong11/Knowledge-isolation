@@ -9,6 +9,8 @@ import { isRpTurn } from './vault/turn.js';
 import { canUseVault } from './vault/access.js';
 import { mountVaultLauncher } from './vault/launcher.js';
 import { mountVault } from './vault/ui.js';
+import { hydrateVaultStorage, vaultStorageState } from './vault/storage-connection.js';
+import { createVaultDiagnostics } from './vault/diagnostics.js';
 
 const PROMPT_KEY = 'knowledge-vault-boundary';
 const context = () => SillyTavern.getContext();
@@ -21,10 +23,13 @@ let pendingMessages = null;
 let analysisStatus = { phase: 'idle' };
 let auditAllowed = true;
 let selectionCursor = 0;
-const analysis = createVaultAnalysis({ context, enabled: () => canUseVault() && auditAllowed && getSettings(context()).enabled,
-  onStatus: status => { analysisStatus = status; render(); } });
+const diagnostics = createVaultDiagnostics({context,readCards,isEnabled:()=>canUseVault() && getSettings(context()).enabled});
+const analysis = createVaultAnalysis({ context, enabled: () => canUseVault() && auditAllowed && getSettings(context()).enabled && vaultStorageState(context()).status === 'ready',
+  onDiagnostic:diagnostics.record,
+  onStatus: status => { analysisStatus = status; if (status.phase==='capacity') diagnostics.record('audit',status); render(); } });
 function updateRunStatus(status) {
   runStatus = { ...status, at: Date.now() };
+  diagnostics.record(['reading','judged'].includes(status.phase)?'selection':'injection',status);
   render();
 }
 function clearReceipt() { registeredPayload = ''; pendingMessages = null; }
@@ -47,7 +52,7 @@ function observeRequest(data) {
 }
 
 function activeCards() {
-  return canUseVault() && getSettings(context()).enabled ? readCards(context()).filter(card => card.enabled && card.route !== 'disabled') : [];
+  return canUseVault() && getSettings(context()).enabled && vaultStorageState(context()).status === 'ready' ? readCards(context()).filter(card => card.enabled && card.route !== 'disabled') : [];
 }
 function activeRevision() {
   const cards = activeCards();
@@ -58,6 +63,7 @@ function activeRevision() {
 // is consumed once; it cannot carry a raw fact into another turn or chat.
 globalThis.KnowledgeVaultV1 = Object.freeze({
   version: '0.1.0',
+  diagnostics: diagnostics.report,
   isEnabled: () => canUseVault() && getSettings(context()).enabled,
   open: () => canUseVault() && popup?.open() === true,
   refreshAccess: () => {
@@ -93,6 +99,14 @@ globalThis.KnowledgeVaultBeforeGenerate = async (_chat, _contextSize, _abort, ty
   auditAllowed = isRpTurn(context(), type, document.getElementById('send_textarea')?.value || '');
   if (!auditAllowed) { pending = null; clearReceipt(); await setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); updateRunStatus({phase:'skipped'}); return; }
   const current = context();
+  if (canUseVault() && getSettings(current).enabled) {
+    if (vaultStorageState(current).status === 'failed') {
+      pending = null; clearReceipt(); await setExtensionPrompt(PROMPT_KEY,'',1,0,false,0);
+      updateRunStatus({phase:'error',error:'금고 저장소 연결 실패 · 금고에서 저장 연결을 재시도해 주세요.'}); return;
+    }
+    try { await hydrateVaultStorage(current); }
+    catch { pending = null; clearReceipt(); await setExtensionPrompt(PROMPT_KEY,'',1,0,false,0); updateRunStatus({phase:'error',error:'금고 저장소 연결 실패 · 기존 데이터 유지'}); return; }
+  }
   const result = pending?.chatMetadata === current.chatMetadata && pending.revision === activeRevision() ? pending : null;
   pending = null;
   const cards = readCards(current);
@@ -120,16 +134,26 @@ jQuery(() => {
     host: popup.panel,
     context,
     settings,
-    getRunStatus: () => ({ ...runStatus, analysis: analysisStatus }),
+    getRunStatus: () => ({ ...runStatus, analysis: analysisStatus, storage:vaultStorageState(context()) }),
+    onStorageRetry: () => loadAndReconcile(),
     onClose: popup.close,
     onSettingsChange: () => { analysis.cancel(); analysisStatus = { phase: settings.enabled ? 'idle' : 'disabled' }; context().saveSettingsDebounced(); pending = null; clearReceipt(); updateRunStatus({ phase: 'idle' }); if (!settings.enabled) setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); },
     onCardsChange: () => { analysis.cancel(); pending = null; clearReceipt(); updateRunStatus({ phase: 'idle' }); setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); },
   });
+  const loadAndReconcile = async () => {
+    const current = context(), metadata = current.chatMetadata;
+    analysis.cancel(); pending = null; clearReceipt(); setExtensionPrompt(PROMPT_KEY,'',1,0,false,0);
+    const loading = hydrateVaultStorage(current,{force:true}); render();
+    try { await loading; if (metadata !== context().chatMetadata) return; await analysis.reconcile(); }
+    catch { if (metadata === context().chatMetadata) { diagnostics.record('storage',{status:'failed',code:'VAULT_STORAGE_FAILED'}); analysisStatus = {phase:'error',code:'storage_failed'}; } }
+    render();
+  };
+  globalThis.SceneReaderHub?.companionStorage?.subscribe?.(() => { void loadAndReconcile(); });
   const reconcile = () => { analysis.reconcile().catch(() => { analysisStatus = { phase: 'error', code: 'storage_failed' }; render(); }); };
-  current.eventSource.on(event_types.CHAT_CHANGED, () => { analysis.cancel(); analysisStatus = { phase: 'idle' }; pending = null; clearReceipt(); updateRunStatus({ phase: 'idle' }); setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); reconcile(); });
+  current.eventSource.on(event_types.CHAT_CHANGED, () => { analysis.cancel(); analysisStatus = { phase: 'idle' }; pending = null; clearReceipt(); updateRunStatus({ phase: 'idle' }); setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); void loadAndReconcile(); });
   for (const name of ['MESSAGE_SWIPED', 'MESSAGE_EDITED', 'MESSAGE_DELETED']) if (event_types[name]) current.eventSource.on(event_types[name], reconcile);
   if (event_types.GENERATION_STOPPED) current.eventSource.on(event_types.GENERATION_STOPPED, () => { auditAllowed = false; analysis.cancel(); analysisStatus = { phase: 'cancelled' }; render(); });
   if (event_types.GENERATE_AFTER_DATA) current.eventSource.on(event_types.GENERATE_AFTER_DATA, observeAssembly);
   if (event_types.CHAT_COMPLETION_SETTINGS_READY) current.eventSource.on(event_types.CHAT_COMPLETION_SETTINGS_READY, observeRequest);
-  reconcile();
+  void loadAndReconcile();
 });

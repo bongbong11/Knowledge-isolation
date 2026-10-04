@@ -19,13 +19,13 @@ const button = (label, action, title = label) => {
   return element;
 };
 
-export function mountVault({ host, context, settings, getRunStatus, onSettingsChange, onCardsChange, onClose }) {
+export function mountVault({ host, context, settings, getRunStatus, onSettingsChange, onCardsChange, onClose, onStorageRetry = () => {} }) {
   let selectedId = null;
   let renderedMetadata = context().chatMetadata;
   const root = node('section', 'kv-root'); root.id = 'kv-root';
   const header = node('div', 'kv-header');
   const title = node('strong', 'kv-title');
-  title.append(createMascotIcon(), node('span', '', '정보금고 / Knowledge Vault 0.1.10'));
+  title.append(createMascotIcon(), node('span', '', '정보금고 / Knowledge Vault 0.1.11'));
   header.append(title);
   const headerActions = node('div', 'kv-header-actions');
   const enabled = node('input'); enabled.type = 'checkbox'; enabled.checked = settings.enabled;
@@ -41,7 +41,9 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
   runSummary.setAttribute('role', 'status'); runSummary.setAttribute('aria-live', 'polite');
   const receiptSummary = node('div', 'kv-run-note');
   const analysisSummary = node('div', 'kv-run-note');
-  runBox.append(cardSummary, runSummary, receiptSummary, analysisSummary);
+  const storageSummary = node('div','kv-run-note');
+  const storageRetry = button('저장 연결 재시도',onStorageRetry); storageRetry.hidden = true;
+  runBox.append(cardSummary, runSummary, receiptSummary, analysisSummary, storageSummary, storageRetry);
   root.append(runBox);
 
   const toolbar = node('div', 'kv-toolbar');
@@ -66,6 +68,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
       return true;
     } catch (error) {
       message.textContent = `저장 실패: ${error.message}`;
+      render();
       return false;
     }
   }
@@ -110,6 +113,9 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
     else if (receipt?.phase === 'assembly' && receipt.status === 'missing') receiptSummary.textContent = '주입문 조립에서 정보금고 경계 미확인';
     else if (receipt) receiptSummary.textContent = '전송 내용 확인 불가 · 사용 중인 생성 경로에서 내용을 읽지 못했습니다.';
     else receiptSummary.textContent = '경계 등록은 전송 확인과 다릅니다. 확인 가능한 생성 경로에서는 전송 상태도 여기에 표시됩니다.';
+    const storage = status.storage || {};
+    storageSummary.textContent = storage.status === 'loading' ? '서버 저장소 불러오는 중' : storage.status === 'failed' ? '서버 저장 연결 실패 · 기존 데이터 유지' : storage.code === 'VAULT_LEGACY_MARKER_FAILED' ? '서버 저장됨 · 채팅 호환 표시 저장은 재확인이 필요합니다.' : storage.status === 'ready' ? '현재 채팅의 저장 정보 연결됨' : '';
+    storageRetry.hidden = storage.status !== 'failed';
     const audit = status.analysis || {};
     analysisSummary.textContent = !settings.enabled ? '지식 습득 확인: 사용 안 함' : audit.phase === 'analyzing' ? `지식 습득 확인 중 · ${audit.checkedCount}개` : audit.phase === 'checked' ? `지식 습득 확인 · 새 습득 ${audit.learnedCount}개 · 일부 습득 ${audit.partialCount}개${audit.unresolvedCount ? ` · 미확인 ${audit.unresolvedCount}개` : ''}` : audit.phase === 'error' ? audit.code === 'PROFILE_UNAVAILABLE' ? '지식 습득 확인: 씬판독기 설정에서 확장 연결모델을 선택하세요.' : '지식 습득 확인 실패 · 기존 지식은 유지합니다.' : audit.phase === 'cancelled' ? '지식 습득 확인 중단 · 기존 지식 유지' : audit.phase === 'capacity' ? '지식 습득 확인: 카드 길이가 처리 범위를 넘었습니다.' : '지식 습득 확인: 완성된 응답을 기다립니다.';
   }
@@ -130,7 +136,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
       view.append(node('div', 'kv-empty', '현재 채팅을 선택해 주세요.'));
       add.disabled = true; return;
     }
-    add.disabled = false;
+    add.disabled = ['loading','failed'].includes(status.storage?.status);
     if (!cards.some(card => card.id === selectedId)) selectedId = cards[0]?.id || null;
     if (!cards.length) {
       list.append(node('div', 'kv-empty', '저장된 카드가 없습니다.'));

@@ -42,17 +42,18 @@ const compact = text => String(text || '').normalize('NFKC').replace(/\s+/g, ' '
 const METHODS = new Set(['told', 'observed', 'read', 'reported']);
 export function validateAcquisitions(result, request) {
   const input = Array.isArray(result?.vault_results) ? result.vault_results : [];
-  const changes = [], unresolved = [], checked = [];
+  const changes = [], unresolved = [], checked = [], diagnostics = [];
   for (const card of request.cards) {
     const entries = input.filter(item => item?.card_id === card.id);
     const entry = entries.length === 1 ? entries[0] : null;
-    if (!entry || !['no_change', 'learned', 'partial', 'uncertain'].includes(entry.status) || !Array.isArray(entry.learners)) { unresolved.push(card.id); continue; }
-    if (entry.status === 'uncertain') { unresolved.push(card.id); continue; }
+    if (!entry || !['no_change', 'learned', 'partial', 'uncertain'].includes(entry.status) || !Array.isArray(entry.learners)) { unresolved.push(card.id); diagnostics.push({cardId:card.id,status:'invalid',reason:'missing_or_invalid_result'}); continue; }
+    if (entry.status === 'uncertain') { unresolved.push(card.id); diagnostics.push({cardId:card.id,status:'uncertain',reason:'uncertain'}); continue; }
     if (entry.status === 'no_change') {
       if (entry.learners.length) unresolved.push(card.id); else checked.push(card.id);
+      diagnostics.push({cardId:card.id,status:entry.learners.length?'invalid':'no_change',reason:entry.learners.length?'learner_validation_failed':'no_new_holder'});
       continue;
     }
-    let accepted = 0, rejected = entry.learners.length > 8;
+    let accepted = 0, rejected = entry.learners.length > 8, rejectionReason = rejected ? 'too_many_learners' : null;
     for (const learner of entry.learners.slice(0, 8)) {
       const evidence = compact(learner?.evidence);
       let actor = resolveActor(learner?.actor_id, request.actors);
@@ -65,9 +66,11 @@ export function validateAcquisitions(result, request) {
         if (!actor && !aliasCollision) actor = { id: actorId(name), name, aliases: [] };
       }
       const confidence = learner?.confidence;
-      if (!actor || !METHODS.has(learner.method) || !['full', 'partial'].includes(learner.scope)
-          || typeof confidence !== 'number' || confidence < 0.8 || confidence > 1 || evidence.length < 8 || evidence.length > 400
-          || !compact(request.sourceText).includes(evidence) || (entry.status === 'partial' && learner.scope !== 'partial')) { rejected = true; continue; }
+      const reason = !actor ? 'actor_unresolved' : !METHODS.has(learner.method) || !['full','partial'].includes(learner.scope) ? 'invalid_method_or_scope'
+        : typeof confidence !== 'number' || confidence < 0.8 || confidence > 1 ? 'confidence_rejected'
+        : evidence.length < 8 || evidence.length > 400 || !compact(request.sourceText).includes(evidence) ? 'evidence_rejected'
+        : entry.status === 'partial' && learner.scope !== 'partial' ? 'scope_mismatch' : null;
+      if (reason) { rejected = true; rejectionReason ||= reason; continue; }
       if (card.knownBy.some(name => actorId(name) === actor.id)) { accepted++; continue; }
       changes.push({ cardId: card.id, actorId: actor.id, actorName: actor.name, scope: learner.scope, method: learner.method,
         date: request.date, evidence, sourceIdentity: request.identity,
@@ -75,8 +78,10 @@ export function validateAcquisitions(result, request) {
       accepted++;
     }
     if (accepted && !rejected) checked.push(card.id); else unresolved.push(card.id);
+    const changed = changes.some(item=>item.cardId===card.id);
+    diagnostics.push({cardId:card.id,status:accepted&&!rejected?(changed?entry.status:'no_change'):'invalid',reason:accepted&&!rejected?(changed?'accepted':'no_new_holder'):(rejectionReason||'learner_validation_failed')});
   }
-  return { changes, unresolved, checked };
+  return { changes, unresolved, checked, diagnostics };
 }
 export function reconcileCards(cards, chat) {
   const prefixes = sourcePrefixes(chat);
