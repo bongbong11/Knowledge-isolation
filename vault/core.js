@@ -1,7 +1,7 @@
 export const ROUTES = ['auto', 'world', 'user', 'character', 'npc', 'shared', 'disabled'];
 
 const RESERVED = new Map([
-  ['유저', 'user'], ['사용자', 'user'], ['{{user}}', 'user'],
+  ['유저', 'user'], ['사용자', 'user'], ['페르소나', 'user'], ['{{user}}', 'user'],
   ['캐릭터', 'character'], ['{{char}}', 'character'],
   ['세계', 'world'], ['world', 'world'],
 ]);

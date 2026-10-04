@@ -1,6 +1,7 @@
 import { event_types, setExtensionPrompt } from '../../../../script.js';
 import { buildPayload, cardRevision, selectedCards } from './vault/core.js';
 import { checkPromptReceipt } from './vault/receipt.js';
+import { createPopup } from './vault/popup.js';
 import { getSettings, readCards } from './vault/store.js';
 import { mountVault } from './vault/ui.js';
 
@@ -32,37 +33,6 @@ function observeRequest(data) {
   const current = context();
   const receipt = checkPromptReceipt(data, registeredPayload, { userName: current.name1, characterName: current.name2 });
   updateRunStatus({ ...runStatus, receipt: { phase: 'request', status: receipt } });
-}
-
-function createPopup() {
-  const backdrop = document.createElement('div');
-  backdrop.id = 'kv-backdrop';
-  backdrop.hidden = true;
-  const panel = document.createElement('div');
-  panel.id = 'kv-popup';
-  panel.hidden = true;
-  panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-label', '정보금고');
-  panel.setAttribute('aria-modal', 'true');
-  document.body.append(backdrop, panel);
-  const close = () => { backdrop.hidden = true; panel.hidden = true; };
-  const open = () => { render(); backdrop.hidden = false; panel.hidden = false; panel.querySelector('button')?.focus(); };
-  backdrop.addEventListener('click', close);
-  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !panel.hidden) close(); });
-
-  const launcher = document.createElement('div');
-  launcher.id = 'kv-wand-button';
-  launcher.className = 'list-group-item flex-container flexGap5 interactable';
-  launcher.setAttribute('role', 'button');
-  launcher.setAttribute('tabindex', '0');
-  launcher.setAttribute('aria-label', '정보금고 열기');
-  launcher.innerHTML = '<span aria-hidden="true">🔐</span><span>정보금고</span>';
-  launcher.addEventListener('click', () => panel.hidden ? open() : close());
-  launcher.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); panel.hidden ? open() : close(); } });
-  const menu = document.getElementById('extensionsMenu');
-  if (menu) menu.append(launcher);
-  else { launcher.classList.add('kv-launcher-fixed'); document.body.append(launcher); }
-  return { panel, close };
 }
 
 function activeCards() {
@@ -109,7 +79,7 @@ globalThis.KnowledgeVaultBeforeGenerate = async (_chat, _contextSize, _abort, ty
 jQuery(() => {
   const current = context();
   const settings = getSettings(current);
-  const popup = createPopup();
+  const popup = createPopup({ render: () => render() });
   render = mountVault({
     host: popup.panel,
     context,

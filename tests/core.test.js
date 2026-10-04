@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeCard, resolveRoute, buildPayload, canSendRaw, cardRevision, selectedCards } from '../vault/core.js';
 import { checkPromptReceipt } from '../vault/receipt.js';
+import { clampGeometry } from '../vault/popup.js';
 
 test('overlapping holders and world truth keep separate access and routing', () => {
   const card = normalizeCard({ id: 'one', title: 'Secret', text: 'Hidden fact', knownBy: ['세계', '유저', 'Mia', 'Mia'] });
@@ -60,4 +61,11 @@ test('future scene-reader cache key changes with active vault facts', () => {
   assert.notEqual(cardRevision([card]), cardRevision([{ ...card, text: '7301' }]));
   assert.notEqual(cardRevision([card]), cardRevision([{ ...card, knownBy: ['Duke'] }]));
   assert.equal(cardRevision([{ ...card, enabled: false }]), '[]');
+});
+
+test('persona alias and popup geometry remain usable on a small screen', () => {
+  assert.deepEqual(normalizeCard({ id: 'one', title: 'Fact', text: 'Secret', knownBy: ['페르소나'] }).knownBy, ['user']);
+  const rect = clampGeometry({ left: 900, top: 900, width: 700, height: 540 }, { width: 390, height: 650 });
+  assert.ok(rect.width <= 374 && rect.height <= 634);
+  assert.ok(rect.left + rect.width <= 382 && rect.top + rect.height <= 642);
 });
