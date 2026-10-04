@@ -1,12 +1,13 @@
 {
-  "display_name": "Knowledge Isolation",
-  "loading_order": 100,
+  "display_name": "정보금고 / Knowledge Vault",
+  "loading_order": 120,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
+  "generate_interceptor": "KnowledgeVaultBeforeGenerate",
   "author": "bongbong11",
-  "version": "0.1.0",
-  "homePage": "https://github.com/bongbong11/knowledge-isolation",
-  "auto_update": false
+  "version": "0.1.1",
+  "homePage": "https://github.com/bongbong11/Knowledge-isolation",
+  "auto_update": true
 }

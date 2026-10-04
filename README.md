@@ -1,64 +1,47 @@
-# Knowledge Isolation
+# 정보금고 / Knowledge Vault v0.1
 
-SillyTavern extension for managing three separate knowledge layers in a
-roleplay scenario, with real context isolation (not just prompt-level
-"pretend you don't know"):
+SillyTavern용 지식 제한 카드 확장입니다. 카드는 **현재 채팅의 메타데이터**에 저장됩니다. `knownBy`는 폐쇄형 목록입니다. 명시된 사람만 알고, 나머지 캐릭터·NPC·시점은 모릅니다. `세계 사실`은 사실의 존재를 뜻하며 캐릭터의 지식권을 주지 않습니다.
 
-- **World Truth** — known to neither the character nor the persona. Read
-  only by a separate GM model (configured via Connection Manager). The
-  GM model converts it into observable scene events/clues, and only
-  those clues — never the raw truth — reach the main roleplay model.
-- **Char Secret** — known to the character and the world, hidden from the
-  persona (you). Optionally stored blind so even you don't see the raw
-  text in the UI. Supports a leak pace (never / slow / normal /
-  confession-ready) for gradual reveals.
-- **User Secret** — known only to the persona. The character has zero
-  knowledge by default; optionally flippable to "character secretly
-  aware" mode, which behaves like a Char Secret instead.
+## 설치
 
-## How injection works
+SillyTavern의 **Extensions → Install Extension**에서 이 저장소 URL을 입력합니다.
 
-Knowledge is **not** pasted directly into your preset. Instead:
+`https://github.com/bongbong11/Knowledge-isolation`
 
-1. Place `{{outlet::YOUR_OUTLET_NAME}}` anywhere in your system prompt
-   (outlet name configurable in Settings, default `KI_Inject`).
-2. A `generate_interceptor` hook runs right before the main model
-   generates a response. It finds that macro and replaces it with the
-   assembled injection payload for that turn.
-3. World Truth never enters the main model's context directly — only
-   the GM model's processed output does. Char/User Secrets are injected
-   as system-layer text with explicit "must not reveal" framing.
+씬리더와 함께 쓰려면 [Scene Reader Hub](https://github.com/bongbong11/Scene_Reader_Hub)도 각각 설치하고, 두 확장을 활성화합니다. 정보금고는 추가 모델·API 키를 요구하지 않습니다. 씬리더의 기존 Jev 판독 회차에 카드별 관련성 질문이 추가됩니다.
 
-## Status
+## 사용
 
-This is a first pass / scaffold:
-- ✅ Settings UI (entries, pacing, prompt editor, outlet config)
-- ✅ Pipeline logic for assembling the injection payload
-- ✅ Manual preview (Settings > 주입 미리보기) for testing without
-  burning a real turn
-- ⚠️ GM model calls use `ConnectionManagerRequestService`, which must
-  exist in your ST version — verify against your installed ST's API
-  before relying on this in a real session
-- ⚠️ Not yet tested end-to-end inside a live SillyTavern instance
+1. 채팅을 열고 Extensions 설정에서 **정보금고**를 엽니다.
+2. **+ 추가**를 눌러 이름, 제한할 사실, 아는 대상을 입력합니다. 아는 대상은 `유저`, `캐릭터`, 구체적인 인물명으로 Enter를 눌러 추가합니다. 여러 보유자를 함께 지정할 수 있습니다. `세계 사실`은 별도 체크입니다.
+3. 저장된 이름 오른쪽의 선택 메뉴에서 `자동 / 세계관 / 유저 / 캐릭터 / NPC / 공유 제한 / 주입 안 함`을 바로 변경합니다. `자동` 옆에는 실제 분류가 표시됩니다. 수동 선택은 분류를 바꾸지만 보유자 목록을 바꾸지 않습니다.
+4. 체크박스로 카드를 켜거나 끄고, **수정** 또는 **삭제**로 관리합니다.
 
-## Install
+자동 분류는 세계 사실만 있으면 `세계관`, 단독 유저는 `유저`, 단독 캐릭터는 `캐릭터`, 단독 인물명은 `NPC`, 여러 보유자 또는 세계 사실과 보유자가 함께 있으면 `공유 제한`입니다. v0.1의 주입 위치는 하나의 SillyTavern 확장 프롬프트 안에서 이 분류별 제목으로 묶입니다.
 
-Copy this folder into:
+## 씬리더 연동
 
-```
-SillyTavern/public/scripts/extensions/third-party/knowledge-isolation/
-```
+두 확장을 설치하면 씬리더가 정보금고의 활성 카드 최대 12개를 **기존 Jev 판독 요청**에 포함합니다. Jev는 이번 장면과 관련 있는지 판단하고, 정보금고에 카드 ID와 선택 결과만 돌려줍니다. 정보금고 코드는 카드의 보유자를 변경하지 않으며, 이번 생성에 필요한 지식 경계만 등록합니다. 판정되지 않은 카드도 기본적으로 가림 경계로 처리합니다.
 
-Reload SillyTavern, enable the extension from Extensions settings, and
-set a GM model profile under Knowledge Isolation > Settings.
+원문은 씬리더의 Jev 판독에는 전달되지만, v0.1에서는 메인 RP 모델로 보내지 않습니다. 메인 모델은 보유자 목록과 엄정한 경계 문구를 받습니다. 따라서 모델이 비밀의 세부 내용에 따라 보유자의 행동을 구체적으로 연기하려면 후속 버전의 검증된 장면 결과와 안전한 행동 요약 기능이 필요합니다. 이 버전은 공개 확률, 자동 공개 상태 변경, 별도 GM 프로필, 프롬프트 편집기를 제공하지 않습니다.
 
-## File layout
+씬리더가 없거나 응답이 불확실할 때도 가림 경계만 사용합니다. 주입 위치 메뉴는 접근권이 아니므로 `세계관`으로 수동 변경해도 비보유자에게 원문이 열리지 않습니다.
 
-- `manifest.json` — extension metadata for ST
-- `index.js` — entry point, registers the interceptor, boots the UI
-- `ui.js` — all DOM rendering for the settings panel
-- `pipeline.js` — GM model calls + injection payload assembly
-- `prompts.js` — default/seed prompt templates per pipeline stage
-- `settings.js` — settings data model + persistence helpers
-- `settings.html` — mount point fragment for ST's extensions drawer
-- `style.css` — scoped styles for the settings panel
+## 씬리더가 사용하는 인터페이스
+
+브라우저의 `window.KnowledgeVaultV1`이 다음 메서드를 제공합니다.
+
+- `getSceneInput()` — 활성 카드의 ID, 원문, 보유자, 세계 사실 여부를 기존 판독 요청용으로 반환
+- `publishSceneResult({ knowledge_vault, vault_injections })` — 같은 생성 회차의 판정 결과를 한 번만 전달
+- `buildPayload(...)` — 순수한 경계 문구 조립
+
+`publishSceneResult`의 원문 요청은 기본적으로 허용되지 않습니다. `raw_boundary`는 보유자만 참여한다는 완전한 참가자 목록을 코드가 검증할 때에만 허용됩니다. 현재 씬리더 연동은 항상 `masked_boundary`를 선택합니다.
+
+## 파일
+
+- `vault/core.js` — 카드 정규화, 경로 분류, 접근권 검증, 엄정 경계 문구
+- `vault/store.js` — 채팅별 저장
+- `vault/ui.js`, `style.css` — 작은 설정 화면
+- `index.js` — SillyTavern과 씬리더 연결
+
+기존 Knowledge Isolation의 World/Char/User, GM, 프롬프트 템플릿 설정은 이 구조로 자동 변환되지 않습니다.
