@@ -1,5 +1,6 @@
 import { event_types, setExtensionPrompt } from '../../../../script.js';
 import { buildPayload, selectedCards } from './vault/core.js';
+import { checkPromptReceipt } from './vault/receipt.js';
 import { getSettings, readCards } from './vault/store.js';
 import { mountVault } from './vault/ui.js';
 
@@ -8,9 +9,29 @@ const context = () => SillyTavern.getContext();
 let pending = null;
 let render = () => {};
 let runStatus = { phase: 'idle' };
+let registeredPayload = '';
+let pendingMessages = null;
 function updateRunStatus(status) {
   runStatus = { ...status, at: Date.now() };
   render();
+}
+function clearReceipt() { registeredPayload = ''; pendingMessages = null; }
+
+function observeAssembly(data, dryRun) {
+  if (dryRun || !registeredPayload || runStatus.phase !== 'registered') return;
+  const messages = Array.isArray(data?.prompt) ? data.prompt : Array.isArray(data?.messages) ? data.messages : null;
+  pendingMessages = messages;
+  const current = context();
+  const receipt = checkPromptReceipt(data, registeredPayload, { userName: current.name1, characterName: current.name2 });
+  updateRunStatus({ ...runStatus, receipt: { phase: 'assembly', status: receipt } });
+}
+
+function observeRequest(data) {
+  if (!pendingMessages || data?.messages !== pendingMessages || !registeredPayload || runStatus.phase !== 'registered') return;
+  pendingMessages = null;
+  const current = context();
+  const receipt = checkPromptReceipt(data, registeredPayload, { userName: current.name1, characterName: current.name2 });
+  updateRunStatus({ ...runStatus, receipt: { phase: 'request', status: receipt } });
 }
 
 function createPopup() {
@@ -65,15 +86,17 @@ globalThis.KnowledgeVaultV1 = Object.freeze({
 });
 
 globalThis.KnowledgeVaultBeforeGenerate = async (_chat, _contextSize, _abort, type) => {
-  if (type === 'quiet') return;
+  if (type === 'quiet') { clearReceipt(); return; }
   const current = context();
   const result = pending?.chatMetadata === current.chatMetadata ? pending : null;
   pending = null;
   const cards = readCards(current);
   const enabled = getSettings(current).enabled;
   const payload = enabled ? buildPayload(cards, result?.knowledge_vault, result?.vault_injections) : '';
+  clearReceipt();
   try {
     await setExtensionPrompt(PROMPT_KEY, payload, 1, 0, false, 0);
+    registeredPayload = payload;
     const includedIds = enabled ? selectedCards(cards, result?.knowledge_vault, result?.vault_injections).map(item => item.card.id) : [];
     updateRunStatus({ phase: 'registered', source: result ? 'scene-reader' : 'fallback', assessedCount: result?.knowledge_vault?.length || 0, relevantCount: result?.knowledge_vault?.filter(item => item.relevant).length || 0, sceneResults: result?.knowledge_vault || [], includedIds, enabled });
   } catch (error) {
@@ -92,8 +115,10 @@ jQuery(() => {
     settings,
     getRunStatus: () => runStatus,
     onClose: popup.close,
-    onSettingsChange: () => { context().saveSettingsDebounced(); pending = null; updateRunStatus({ phase: 'idle' }); if (!settings.enabled) setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); },
-    onCardsChange: () => { pending = null; updateRunStatus({ phase: 'idle' }); setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); },
+    onSettingsChange: () => { context().saveSettingsDebounced(); pending = null; clearReceipt(); updateRunStatus({ phase: 'idle' }); if (!settings.enabled) setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); },
+    onCardsChange: () => { pending = null; clearReceipt(); updateRunStatus({ phase: 'idle' }); setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); },
   });
-  current.eventSource.on(event_types.CHAT_CHANGED, () => { pending = null; updateRunStatus({ phase: 'idle' }); setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); });
+  current.eventSource.on(event_types.CHAT_CHANGED, () => { pending = null; clearReceipt(); updateRunStatus({ phase: 'idle' }); setExtensionPrompt(PROMPT_KEY, '', 1, 0, false, 0); });
+  if (event_types.GENERATE_AFTER_DATA) current.eventSource.on(event_types.GENERATE_AFTER_DATA, observeAssembly);
+  if (event_types.CHAT_COMPLETION_SETTINGS_READY) current.eventSource.on(event_types.CHAT_COMPLETION_SETTINGS_READY, observeRequest);
 });

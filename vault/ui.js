@@ -29,7 +29,8 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
   const runSummary = node('div', 'kv-run-summary');
   runSummary.setAttribute('role', 'status');
   runSummary.setAttribute('aria-live', 'polite');
-  runBox.append(runSummary, node('div', 'kv-run-note', '경계 문구 등록 상태입니다. 실제 모델 전송 확인은 씬판독기 실행 흐름에서 확인하세요.'));
+  const receiptSummary = node('div', 'kv-run-note');
+  runBox.append(runSummary, receiptSummary);
   root.append(runBox);
   const message = node('div', 'kv-message'); root.append(message);
   const list = node('div', 'kv-list'); root.append(list);
@@ -54,6 +55,13 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
       runSummary.textContent = `${source} · ${status.includedIds.length ? `경계 ${status.includedIds.length}개 등록` : '등록된 경계 없음'}${time}`;
     } else if (status.phase === 'error') runSummary.textContent = `경계 등록 실패: ${status.error}${time}`;
     else runSummary.textContent = '아직 실행 기록 없음 · 씬판독기 자동 판독을 켜고 메시지를 생성하세요.';
+    const receipt = status.receipt;
+    if (receipt?.phase === 'request' && receipt.status === 'confirmed') receiptSummary.textContent = '전송 요청에 정보금고 경계 포함 확인';
+    else if (receipt?.phase === 'request' && receipt.status === 'missing') receiptSummary.textContent = '전송 요청에서 정보금고 경계 미확인';
+    else if (receipt?.phase === 'assembly' && receipt.status === 'confirmed') receiptSummary.textContent = '주입문 조립에 포함 확인 · 전송 요청 확인 대기';
+    else if (receipt?.phase === 'assembly' && receipt.status === 'missing') receiptSummary.textContent = '주입문 조립에서 정보금고 경계 미확인';
+    else if (receipt) receiptSummary.textContent = '전송 내용 확인 불가 · 사용 중인 생성 경로에서 내용을 읽지 못했습니다.';
+    else receiptSummary.textContent = '경계 등록은 전송 확인과 다릅니다. 확인 가능한 생성 경로에서는 전송 상태도 여기에 표시됩니다.';
     const cards = readCards(context());
     if (!context().chatMetadata) { list.append(node('div', 'kv-empty', '채팅을 열면 정보금고를 사용할 수 있습니다.')); add.disabled = true; return; }
     add.disabled = false;
