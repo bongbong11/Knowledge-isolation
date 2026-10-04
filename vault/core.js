@@ -64,10 +64,10 @@ const HEADER = `[INFORMATION VAULT — HARD KNOWLEDGE BOUNDARY]
 Each restricted item is known ONLY by its listed holders. Everyone else, including every unlisted character, NPC, and viewpoint, does not know it. Author-level context is not character knowledge.
 Non-holders must not speak, think, remember, recognize, correctly guess, explain, anticipate, or act on a restricted fact. They may notice only observable clues and uncertainty. A holder list changes only when the user edits the card.`;
 
-export function buildPayload(cards, sceneResults = [], decisions = []) {
+export function selectedCards(cards, sceneResults = [], decisions = []) {
   const scenes = new Map((Array.isArray(sceneResults) ? sceneResults : []).filter(x => x?.secret_id).map(x => [String(x.secret_id), x]));
   const choices = new Map((Array.isArray(decisions) ? decisions : []).filter(x => x?.secret_id).map(x => [String(x.secret_id), x]));
-  const sections = new Map();
+  const selected = [];
   for (const raw of Array.isArray(cards) ? cards : []) {
     const card = normalizeCard(raw);
     if (!validCard(card)) continue;
@@ -77,6 +77,14 @@ export function buildPayload(cards, sceneResults = [], decisions = []) {
     if (route === 'disabled') continue;
     const scene = scenes.get(card.id);
     if (scene?.relevant === false) continue;
+    selected.push({ card, route, scene, choice });
+  }
+  return selected;
+}
+
+export function buildPayload(cards, sceneResults = [], decisions = []) {
+  const sections = new Map();
+  for (const { card, route, scene, choice } of selectedCards(cards, sceneResults, decisions)) {
     const rawAllowed = choice?.mode === 'raw_boundary' && canSendRaw(card, scene);
     const holders = card.knownBy.map(displayHolder);
     const known = holders.length ? holders.join(', ') : 'no character';

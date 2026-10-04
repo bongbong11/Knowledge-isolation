@@ -8,12 +8,16 @@
 .kv-header { justify-content: space-between; font-size: 12px; }
 .kv-on, .kv-world { display: inline-flex; align-items: center; gap: 3px; }
 .kv-hint { margin: 4px 0 6px; opacity: .75; }
+.kv-run { margin: 4px 0 6px; padding: 5px; border: 1px solid var(--SmartThemeBorderColor, #555); border-radius: 4px; }
+.kv-run-summary { font-size: 10px; line-height: 1.35; }
+.kv-run-note { margin-top: 2px; font-size: 9px; opacity: .7; }
 .kv-message { color: #e99595; min-height: 0; }
 .kv-row { border-top: 1px solid var(--SmartThemeBorderColor, #555); padding: 5px 0; }
 .kv-row-top { min-width: 0; }
 .kv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .kv-route { width: 92px; max-width: 92px; height: 22px; padding: 1px 2px; font-size: 10px; }
 .kv-resolved { white-space: nowrap; opacity: .75; font-size: 10px; }
+.kv-card-status { white-space: nowrap; opacity: .8; font-size: 9px; }
 .kv-tags { margin: 3px 0; opacity: .8; overflow-wrap: anywhere; }
 .kv-button { width: auto; min-width: 0; min-height: 20px; height: 20px; padding: 1px 5px; font-size: 10px; line-height: 1; cursor: pointer; }
 .kv-add { margin-top: 5px; }

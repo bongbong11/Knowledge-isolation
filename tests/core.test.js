@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeCard, resolveRoute, buildPayload, canSendRaw } from '../vault/core.js';
+import { normalizeCard, resolveRoute, buildPayload, canSendRaw, selectedCards } from '../vault/core.js';
 
 test('overlapping holders and world truth keep separate access and routing', () => {
   const card = normalizeCard({ id: 'one', title: 'Secret', text: 'Hidden fact', knownBy: ['세계', '유저', 'Mia', 'Mia'] });
@@ -27,4 +27,20 @@ test('raw payload requires complete listed participants and explicit mode', () =
   assert.equal(canSendRaw(card, scene), true);
   assert.ok(!buildPayload([card], [scene]).includes('Hidden fact'));
   assert.ok(buildPayload([card], [scene], [{ secret_id: 'one', inject: true, mode: 'raw_boundary' }]).includes('Hidden fact'));
+});
+
+test('status card selection matches the registered boundary payload', () => {
+  const cards = [
+    normalizeCard({ id: 'one', title: 'One', text: 'Fact one', knownBy: ['user'] }),
+    normalizeCard({ id: 'two', title: 'Two', text: 'Fact two', knownBy: ['Mia'] }),
+    normalizeCard({ id: 'off', title: 'Off', text: 'Fact off', knownBy: ['Mia'], enabled: false }),
+  ];
+  const scenes = [{ secret_id: 'one', relevant: false }];
+  const decisions = [{ secret_id: 'one', inject: false }];
+  const selected = selectedCards(cards, scenes, decisions).map(item => item.card.id);
+  const payload = buildPayload(cards, scenes, decisions);
+  assert.deepEqual(selected, ['two']);
+  assert.ok(payload.includes('[ITEM two]'));
+  assert.ok(!payload.includes('[ITEM one]'));
+  assert.ok(!payload.includes('[ITEM off]'));
 });

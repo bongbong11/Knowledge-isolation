@@ -14,7 +14,7 @@ const button = (label, action, title = label) => {
   return element;
 };
 
-export function mountVault({ host, context, settings, onSettingsChange, onCardsChange, onClose }) {
+export function mountVault({ host, context, settings, getRunStatus, onSettingsChange, onCardsChange, onClose }) {
   const root = node('section', 'kv-root'); root.id = 'kv-root';
   const header = node('div', 'kv-header');
   header.append(node('strong', '', '🔐 정보금고 / Knowledge Vault'));
@@ -25,6 +25,12 @@ export function mountVault({ host, context, settings, onSettingsChange, onCardsC
   root.append(header);
   const hint = node('p', 'kv-hint', '현재 채팅에만 저장 · 목록에 없는 인물은 모름 · 씬 판정 전에는 원문 가림');
   root.append(hint);
+  const runBox = node('div', 'kv-run');
+  const runSummary = node('div', 'kv-run-summary');
+  runSummary.setAttribute('role', 'status');
+  runSummary.setAttribute('aria-live', 'polite');
+  runBox.append(runSummary, node('div', 'kv-run-note', '경계 문구 등록 상태입니다. 실제 모델 전송 확인은 씬판독기 실행 흐름에서 확인하세요.'));
+  root.append(runBox);
   const message = node('div', 'kv-message'); root.append(message);
   const list = node('div', 'kv-list'); root.append(list);
   const add = button('+ 추가', () => editCard(null)); add.classList.add('kv-add'); root.append(add);
@@ -38,6 +44,16 @@ export function mountVault({ host, context, settings, onSettingsChange, onCardsC
 
   function render() {
     list.replaceChildren();
+    const status = getRunStatus();
+    const time = status.at ? ` · ${new Date(status.at).toLocaleTimeString()}` : '';
+    if (status.phase === 'reading') runSummary.textContent = `씬판독기 연결됨 · 카드 ${status.candidateCount}개 판독 요청됨 · 완료 확인 전${time}`;
+    else if (status.phase === 'judged') runSummary.textContent = `씬판독기 판독 완료 · ${status.assessedCount}개 중 ${status.relevantCount}개 관련 · 생성 시 등록 대기${time}`;
+    else if (status.phase === 'registered' && !status.enabled) runSummary.textContent = `정보금고 꺼짐 · 경계 해제${time}`;
+    else if (status.phase === 'registered') {
+      const source = status.source === 'scene-reader' ? `씬판독기 판독 ${status.assessedCount}개 · 관련 ${status.relevantCount}개` : '씬판독기 판정 없음 · 기본 가림 경계';
+      runSummary.textContent = `${source} · ${status.includedIds.length ? `경계 ${status.includedIds.length}개 등록` : '등록된 경계 없음'}${time}`;
+    } else if (status.phase === 'error') runSummary.textContent = `경계 등록 실패: ${status.error}${time}`;
+    else runSummary.textContent = '아직 실행 기록 없음 · 씬판독기 자동 판독을 켜고 메시지를 생성하세요.';
     const cards = readCards(context());
     if (!context().chatMetadata) { list.append(node('div', 'kv-empty', '채팅을 열면 정보금고를 사용할 수 있습니다.')); add.disabled = true; return; }
     add.disabled = false;
@@ -54,6 +70,13 @@ export function mountVault({ host, context, settings, onSettingsChange, onCardsC
       select.addEventListener('change', () => persist(cards.map(item => item.id === card.id ? { ...item, route: select.value } : item)));
       top.append(toggle, name, select);
       if (card.route === 'auto') top.append(node('small', 'kv-resolved', `→ ${LABELS[resolveRoute(card)]}`));
+      if (status.phase === 'registered') {
+        const result = !status.enabled || !card.enabled || card.route === 'disabled' ? '꺼짐' : status.includedIds.includes(card.id) ? '경계 등록' : '이번 턴 제외';
+        top.append(node('small', 'kv-card-status', result));
+      } else if (status.phase === 'judged') {
+        const result = status.sceneResults.find(item => item.secret_id === card.id);
+        if (result) top.append(node('small', 'kv-card-status', result.relevant ? '관련' : '이번 턴 제외'));
+      }
       row.append(top);
       const tags = [...(card.truthScope === 'world' ? ['세계'] : []), ...card.knownBy.map(x => x === 'user' ? '유저' : x === 'character' ? '캐릭터' : x)];
       row.append(node('div', 'kv-tags', `아는 대상: ${tags.join(', ')}`));
