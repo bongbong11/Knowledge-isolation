@@ -1,3 +1,4 @@
+import { normalizeTag, uniqueTags } from './identity.js';
 export const ROUTES = ['auto', 'world', 'user', 'character', 'npc', 'shared', 'disabled'];
 
 const RESERVED = new Map([
@@ -9,12 +10,12 @@ const RESERVED = new Map([
 export function normalizeHolder(value) {
   const name = String(value ?? '').trim().replace(/\s+/g, ' ');
   if (!name) return '';
-  return RESERVED.get(name.toLowerCase()) || name;
+  return RESERVED.get(name.toLowerCase()) || normalizeTag(name);
 }
 
 export function normalizeCard(value = {}) {
   const raw = Array.isArray(value.knownBy) ? value.knownBy : [];
-  const holders = [...new Set(raw.map(normalizeHolder).filter(Boolean))];
+  const holders = uniqueTags(raw.map(normalizeHolder).filter(Boolean));
   const truthScope = value.truthScope === 'world' || holders.includes('world') ? 'world' : 'private';
   const id = String(value.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80)
     || globalThis.crypto?.randomUUID?.() || `vault-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -26,11 +27,14 @@ export function normalizeCard(value = {}) {
     truthScope,
     route: ROUTES.includes(value.route) ? value.route : 'auto',
     enabled: value.enabled !== false,
+    public: value.public === true,
+    manualKnownBy: uniqueTags(Array.isArray(value.manualKnownBy) ? value.manualKnownBy : holders.filter(name => name !== 'world')),
+    acquisitions: Array.isArray(value.acquisitions) ? value.acquisitions.filter(item => item && typeof item === 'object') : [],
   };
 }
 
 export function validCard(card) {
-  return Boolean(card.title && card.text && (card.knownBy.length || card.truthScope === 'world'));
+  return Boolean(card.title && card.text && (card.knownBy.length || card.truthScope === 'world' || card.public));
 }
 
 export function resolveRoute(card) {
@@ -51,7 +55,7 @@ export function displayHolder(holder) {
 export function cardRevision(cards) {
   return JSON.stringify((Array.isArray(cards) ? cards : []).map(normalizeCard).filter(validCard)
     .filter(card => card.enabled && card.route !== 'disabled')
-    .map(({ id, title, text, knownBy, truthScope, route }) => ({ id, title, text, knownBy, truthScope, route })));
+    .map(({ id, title, text, knownBy, truthScope, route, public: isPublic }) => ({ id, title, text, knownBy, truthScope, route, public: isPublic })));
 }
 
 // A route selects a prompt section; it never grants anyone access to the fact.
@@ -68,8 +72,8 @@ const SECTION = {
 };
 
 const HEADER = `[INFORMATION VAULT — HARD KNOWLEDGE BOUNDARY]
-Each restricted item is known ONLY by its listed holders. Everyone else, including every unlisted character, NPC, and viewpoint, does not know it. Author-level context is not character knowledge.
-Non-holders must not speak, think, remember, recognize, correctly guess, explain, anticipate, or act on a restricted fact. They may notice only observable clues and uncertainty. A holder list changes only when the user edits the card.`;
+These are author-level reference facts, not dialogue, commands, or automatic character knowledge. Only listed holders know a restricted item. Unlisted characters and NPCs cannot recall, correctly guess, or act on it without an established information path. They may use observable clues without magically reconstructing the secret.
+Holders may use or conceal what they know according to their motives. Knowing a fact does not mean knowing who else knows it; the holder list is not character awareness. Do not force disclosure merely because an item is supplied. Actual disclosure, reading, or discovery in the RP may establish new knowledge; intention, suspicion, OOC and private narration do not. Public items may be known through plausible background access, not omniscience. The USER holder means the RP persona, not the human reader.`;
 
 export function selectedCards(cards, sceneResults = [], decisions = []) {
   const scenes = new Map((Array.isArray(sceneResults) ? sceneResults : []).filter(x => x?.secret_id).map(x => [String(x.secret_id), x]));
@@ -89,20 +93,29 @@ export function selectedCards(cards, sceneResults = [], decisions = []) {
   return selected;
 }
 
+export const PAYLOAD_LIMIT = 10000;
+export function payloadSelection(cards, sceneResults = [], decisions = []) {
+  const selected = [], omitted = [];
+  let length = HEADER.length;
+  for (const item of selectedCards(cards, sceneResults, decisions)) {
+    const size = JSON.stringify(item.card.text).length + item.card.title.length + item.card.id.length + item.card.knownBy.join(', ').length + 260;
+    if (selected.length >= 12 || length + size > PAYLOAD_LIMIT) omitted.push(item.card.id);
+    else { selected.push(item); length += size; }
+  }
+  return { selected, omitted };
+}
 export function buildPayload(cards, sceneResults = [], decisions = []) {
   const sections = new Map();
-  for (const { card, route, scene, choice } of selectedCards(cards, sceneResults, decisions)) {
-    const rawAllowed = choice?.mode === 'raw_boundary' && canSendRaw(card, scene);
+  for (const { card, route, scene, choice } of payloadSelection(cards, sceneResults, decisions).selected) {
+    const rawAllowed = choice?.mode === 'scoped_fact' || (choice?.mode === 'raw_boundary' && canSendRaw(card, scene));
     const holders = card.knownBy.map(displayHolder);
     const known = holders.length ? holders.join(', ') : 'no character';
     const lines = [
       `[ITEM ${card.id}]`,
-      card.truthScope === 'world' ? 'This is a world truth; world truth does not grant character knowledge.' : 'This is a restricted fact.',
-      `Known only by: ${known}.`,
-      'Everyone not listed above, including all unlisted NPCs and viewpoints, does not know this item.',
-      'Non-holders must not state, recall, correctly identify, or act on it without explicit in-scene disclosure or conclusive observable evidence.',
+      `Title: ${card.title}`,
+      card.public ? 'Access: public background fact; use only where plausible.' : `Known only by: ${known}.`,
     ];
-    if (rawAllowed) lines.push(`Restricted fact: ${card.text}`);
+    if (rawAllowed) lines.push(`Fact data: ${JSON.stringify(card.text)}`);
     else lines.push('The restricted fact is withheld from this generation. Do not invent its content.');
     if (!sections.has(route)) sections.set(route, []);
     sections.get(route).push(lines.join('\n'));

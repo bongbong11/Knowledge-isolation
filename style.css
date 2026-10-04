@@ -22,7 +22,6 @@
 .kv-row-top { min-width: 0; }
 .kv-row-top input { flex: none; }
 .kv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 2px !important; border: 0 !important; background: transparent !important; color: inherit; text-align: left; font-weight: 700; }
-.kv-route { flex: none; width: 78px; max-width: 78px; min-height: 22px; padding: 1px 2px; font-size: 10px; }
 .kv-row-meta { justify-content: space-between; min-width: 0; margin-top: 3px; font-size: 9px; opacity: .82; }
 .kv-row-meta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kv-card-status { flex: none; white-space: nowrap; font-size: 9px; opacity: .8; }
@@ -33,7 +32,6 @@
 .kv-detail-holders { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 6px 0; border-top: 1px solid var(--SmartThemeBorderColor, #555); }
 .kv-detail-holders strong { margin-right: 3px; }
 .kv-holder-chip { padding: 2px 5px; border: 1px solid var(--SmartThemeBorderColor, #555); border-radius: 12px; font-size: 10px; }
-.kv-detail-route { margin: 6px 0; opacity: .78; }
 .kv-actions { margin-top: 9px; }
 .kv-button { width: auto; min-width: 0; min-height: 22px; padding: 2px 6px; border: 1px solid var(--SmartThemeBorderColor, #777); border-radius: 5px; background: color-mix(in srgb, var(--SmartThemeBodyColor, #eee) 5%, transparent); color: inherit; font-size: 10px; line-height: 1.1; cursor: pointer; }
 .kv-button:hover { border-color: var(--SmartThemeQuoteColor, #8ba8cf); }
@@ -48,6 +46,12 @@
 .kv-chips { flex-wrap: wrap; margin: 5px 0; }
 .kv-tag-row input { flex: 1; }
 .kv-world { margin-top: 8px; }
+.kv-alias-editor { display: grid; gap: 4px; }
+.kv-alias-editor:empty { display: none; }
+.kv-alias-editor input { width: 100%; min-width: 0; font-size: 11px; }
+.kv-history { margin-top: 8px; font-size: 10px; }
+.kv-history div { padding: 4px 0; overflow-wrap: anywhere; }
+.kv-presets, .kv-chips, .kv-detail-holders { flex-wrap: wrap; }
 .kv-form-actions { margin-top: 10px; }
 .kv-resize-handle { position: absolute; right: 0; bottom: 0; z-index: 2; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 0 0 8px 0; background: transparent; color: inherit; font-size: 16px; line-height: 1; cursor: nwse-resize; touch-action: none; }
 @media (max-width: 600px) {

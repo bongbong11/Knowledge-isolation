@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeCard, resolveRoute, buildPayload, canSendRaw, cardRevision, selectedCards } from '../vault/core.js';
-import { checkPromptReceipt } from '../vault/receipt.js';
+import { checkPromptReceipt, sameRequestMessages } from '../vault/receipt.js';
 import { clampGeometry } from '../vault/popup.js';
 
 test('overlapping holders and world truth keep separate access and routing', () => {
@@ -19,7 +19,7 @@ test('unverified or mixed scenes never expose raw secret', () => {
   assert.equal(canSendRaw(card, { scene_access: 'mixed', participantsComplete: true, participants: ['user', 'Duke'] }), false);
   const masked = buildPayload([card], [{ secret_id: 'one', relevant: true, scene_access: 'mixed' }], [{ secret_id: 'one', inject: true, mode: 'raw_boundary' }]);
   assert.ok(masked.includes('Known only by: {{user}}, Mia.'));
-  assert.ok(masked.includes('Everyone not listed above'));
+  assert.ok(masked.includes('Unlisted characters and NPCs'));
   assert.ok(!masked.includes('Hidden fact'));
 });
 
@@ -53,6 +53,17 @@ test('prompt receipt distinguishes registered text from final request content', 
   assert.equal(checkPromptReceipt({ messages: [{ content: 'Known only by: Ari, Mia.' }] }, payload, names), 'confirmed');
   assert.equal(checkPromptReceipt({ messages: [{ content: 'Other instructions' }] }, payload, names), 'missing');
   assert.equal(checkPromptReceipt({ messages: [] }, payload, names), 'unavailable');
+});
+
+test('request receipt follows a filtered host array but rejects unrelated requests', () => {
+  const system = { role: 'system', content: 'Vault boundary' };
+  const user = { role: 'user', content: 'Synthetic input' };
+  const original = [system, null, user];
+  assert.equal(sameRequestMessages(original, original), true);
+  assert.equal(sameRequestMessages(original, original.filter(Boolean)), true);
+  assert.equal(sameRequestMessages(original, [{ ...system }, { ...user }]), false);
+  assert.equal(sameRequestMessages(original, [user]), false);
+  assert.equal(sameRequestMessages(null, []), false);
 });
 
 test('future scene-reader cache key changes with active vault facts', () => {

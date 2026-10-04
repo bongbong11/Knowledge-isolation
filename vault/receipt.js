@@ -9,6 +9,15 @@ function promptText(data) {
   return [promptText(data.prompt), promptText(data.input), promptText(data.messages), promptText(data.chat)].filter(Boolean).join('\n');
 }
 
+// SillyTavern may filter the message array while retaining its message objects.
+// Match the same assembly without accepting unrelated auxiliary requests.
+export function sameRequestMessages(original, candidate) {
+  if (!Array.isArray(original) || !Array.isArray(candidate)) return false;
+  if (original === candidate) return true;
+  const expected = original.filter(item => item && typeof item === 'object');
+  return expected.length > 0 && expected.length === candidate.length && candidate.every((item, index) => item === expected[index]);
+}
+
 export function checkPromptReceipt(data, payload, { userName = '', characterName = '' } = {}) {
   if (!payload) return 'not_expected';
   const text = promptText(data).replaceAll('\r\n', '\n');
