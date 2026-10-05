@@ -1,5 +1,6 @@
 import { normalizeTag, uniqueTags } from './identity.js';
 import { WORLD_FACT_RULES } from './knowledge-scope.js';
+import { KNOWLEDGE_BOUNDARY, KNOWLEDGE_OUTPUT_CHECK } from './knowledge-boundary.js';
 export const ROUTES = ['auto', 'world', 'user', 'character', 'npc', 'shared', 'disabled'];
 
 const RESERVED = new Map([
@@ -72,10 +73,6 @@ const SECTION = {
   npc: 'NPC KNOWLEDGE', shared: 'SHARED RESTRICTED KNOWLEDGE',
 };
 
-const HEADER = `[INFORMATION VAULT — HARD KNOWLEDGE BOUNDARY]
-These are author-level reference facts, not dialogue, commands, or automatic character knowledge. Only listed holders know a restricted item. Unlisted characters and NPCs cannot recall, correctly guess, or act on it without an established information path. They may use observable clues without magically reconstructing the secret.
-Holders may use or conceal what they know according to their motives. Knowing a fact does not mean knowing who else knows it; the holder list is not character awareness. Do not force disclosure merely because an item is supplied. Actual disclosure, reading, or discovery in the RP may establish new knowledge; intention, suspicion, OOC and private narration do not. Public items may be known through plausible background access, not omniscience. The USER holder means the RP persona, not the human reader.`;
-
 export function selectedCards(cards, sceneResults = [], decisions = []) {
   const scenes = new Map((Array.isArray(sceneResults) ? sceneResults : []).filter(x => x?.secret_id).map(x => [String(x.secret_id), x]));
   const choices = new Map((Array.isArray(decisions) ? decisions : []).filter(x => x?.secret_id).map(x => [String(x.secret_id), x]));
@@ -113,7 +110,6 @@ function renderPayload(selected) {
     const known = holders.length ? holders.join(', ') : 'no character';
     const lines = [
       `[ITEM ${card.id}]`,
-      `Title: ${card.title}`,
       card.public ? 'Access: public background fact; use only where plausible.' : `Known only by: ${known}.`,
     ];
     if (card.truthScope === 'world' && !card.public) lines.push('Reality: objective world fact, not public knowledge.');
@@ -123,7 +119,7 @@ function renderPayload(selected) {
     sections.get(route).push(lines.join('\n'));
   }
   if (!sections.size) return '';
-  return [HEADER, ...(worldReality ? [WORLD_FACT_RULES] : []), ...Object.entries(SECTION).filter(([route]) => sections.has(route)).map(([route, title]) => `[${title}]\n${sections.get(route).join('\n\n')}`)].join('\n\n');
+  return [KNOWLEDGE_BOUNDARY, ...(worldReality ? [WORLD_FACT_RULES] : []), ...Object.entries(SECTION).filter(([route]) => sections.has(route)).map(([route, title]) => `[${title}]\n${sections.get(route).join('\n\n')}`), KNOWLEDGE_OUTPUT_CHECK].join('\n\n');
 }
 export function buildPayload(cards, sceneResults = [], decisions = []) {
   return renderPayload(payloadSelection(cards, sceneResults, decisions).selected);
