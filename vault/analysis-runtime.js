@@ -2,6 +2,7 @@ import { cardRevision } from './core.js';
 import { ACQUISITION_SYSTEM, applyAcquisitions, identityCurrent, outputIdentity, reconcileCards, sceneDate, validateAcquisitions } from './acquisition.js';
 import { buildActors, fingerprint } from './identity.js';
 import { CHAT_KEY, readActors, readCards, writeAudit, writeCards } from './store.js';
+import {knowledgeSourceScope,knowledgeReceiptKey} from './storyline-scope.js';
 
 // The vault owns leases, evidence validation and metadata. The host owns the model request.
 export function createVaultAnalysis({ context, enabled, onStatus = () => {}, onDiagnostic = () => {} }) {
@@ -16,7 +17,7 @@ export function createVaultAnalysis({ context, enabled, onStatus = () => {}, onD
     const ctx = context(), metadata = ctx.chatMetadata;
     await enqueue(async () => {
       if (metadata !== context().chatMetadata) return;
-      const cards = readCards(ctx), updated = reconcileCards(cards, ctx.chat || []);
+      const cards = readCards(ctx), updated = reconcileCards(cards, ctx.chat || [],knowledgeSourceScope(ctx));
       if (JSON.stringify(cards) !== JSON.stringify(updated)) {
         try { await writeCards(ctx, updated, {resetAudit:true}); }
         catch (error) { note('storage',{status:'failed',code:'VAULT_STORAGE_FAILED'},{metadata}); throw error; }
@@ -32,7 +33,8 @@ export function createVaultAnalysis({ context, enabled, onStatus = () => {}, onD
     if (!identity || !sourceText?.trim()) { note('audit',{status:'skipped',reason:'no_source'}); return null; }
     const cards = readCards(ctx).filter(card => card.enabled && card.route !== 'disabled' && !card.public);
     if (!cards.length) { note('audit',{status:'skipped',reason:'no_cards'}); return null; }
-    const rev = revision(ctx), key = `${identity.prefix}:${rev}`;
+    const scope=knowledgeSourceScope(ctx);if(scope.chatRef)identity.originChatRef=scope.chatRef;
+    const rev = revision(ctx), key = `${knowledgeReceiptKey(identity)}:${rev}`;
     if (ctx.chatMetadata?.[CHAT_KEY]?.auditReceipts?.includes(key) || completed.get(ctx.chatMetadata)?.has(key) || [...leases.values()].some(item => item.metadata === ctx.chatMetadata && item.key === key)) { note('audit',{status:'skipped',reason:'duplicate',outputIndex}); return null; }
     const rotated = [...cards.slice(cursor), ...cards.slice(0, cursor)]; cursor = (cursor + 4) % cards.length;
     // Prefer injected cards while reserving room for rotating through the rest.
@@ -79,14 +81,14 @@ export function createVaultAnalysis({ context, enabled, onStatus = () => {}, onD
       const request = leases.get(token), checked = validateAcquisitions(result, request);
       for (const entry of checked.diagnostics) note('validation',{...entry,token,sceneDate:request.date,changes:checked.changes.filter(item=>item.cardId===entry.cardId)},request);
       const cards = applyAcquisitions(readCards(context()), checked.changes);
-      const afterKey = `${request.identity.prefix}:${fingerprint(cardRevision(cards) + JSON.stringify(readActors(context())))}`;
+      const afterKey = `${knowledgeReceiptKey(request.identity)}:${fingerprint(cardRevision(cards) + JSON.stringify(readActors(context())))}`;
       try { await writeAudit(context(), cards, [request.key, afterKey]); }
       catch (error) { note('storage',{status:'failed',token,code:'VAULT_STORAGE_FAILED'},request); throw error; }
       note('storage',{status:'saved',token,changedCount:checked.changes.length,durationMs:Date.now()-request.startedAt},request);
       leases.delete(token);
       const seen = completed.get(request.metadata) || new Set(); seen.add(request.key);
       // Tag changes alter the revision; suppress duplicate processing of the same output.
-      seen.add(`${request.identity.prefix}:${revision(context())}`);
+      seen.add(`${knowledgeReceiptKey(request.identity)}:${revision(context())}`);
       if (seen.size > 120) seen.delete(seen.values().next().value); completed.set(request.metadata, seen);
       const status = { status: checked.unresolved.length || request.omitted.length || request.sourceTruncated ? 'partial' : 'success',
         checkedCount: checked.checked.length, learnedCount: checked.changes.filter(item => item.scope === 'full').length,

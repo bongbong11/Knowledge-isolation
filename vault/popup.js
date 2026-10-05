@@ -5,8 +5,8 @@ export function clampGeometry(value, viewport) {
   const heightLimit = Math.max(1, viewport.height - 16);
   const minWidth = Math.min(360, widthLimit);
   const minHeight = Math.min(280, heightLimit);
-  const width = Math.min(widthLimit, Math.max(minWidth, Number(value?.width) || Math.min(700, widthLimit)));
-  const height = Math.min(heightLimit, Math.max(minHeight, Number(value?.height) || Math.min(540, heightLimit)));
+  const width = Math.min(widthLimit, Math.max(minWidth, Number(value?.width) || Math.min(900, widthLimit)));
+  const height = Math.min(heightLimit, Math.max(minHeight, Number(value?.height) || Math.min(740, heightLimit)));
   const left = Math.min(Math.max(8, Number(value?.left) || (viewport.width - width) / 2), Math.max(8, viewport.width - width - 8));
   const top = Math.min(Math.max(8, Number(value?.top) || viewport.height * .08), Math.max(8, viewport.height - height - 8));
   return { left, top, width, height };
@@ -45,8 +45,9 @@ export function createPopup({ render, canOpen = () => false }) {
     if (event.button !== 0 || (kind === 'move' && event.pointerType === 'touch')) return;
     event.preventDefault();
     event.stopPropagation();
-    gesture = { kind, pointerId: event.pointerId, x: event.clientX, y: event.clientY, start: { ...geometry } };
-    panel.setPointerCapture(event.pointerId);
+    const captureTarget = kind === 'resize' ? resizeHandle : panel;
+    gesture = { kind, pointerId: event.pointerId, x: event.clientX, y: event.clientY, start: { ...geometry }, captureTarget };
+    captureTarget.setPointerCapture(event.pointerId);
   }
   panel.addEventListener('pointerdown', event => {
     if (event.target === resizeHandle) return startGesture(event, 'resize');
@@ -65,8 +66,9 @@ export function createPopup({ render, canOpen = () => false }) {
   });
   function finishGesture(event) {
     if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const captureTarget = gesture.captureTarget;
     gesture = null; applyGeometry(geometry, true);
-    if (panel.hasPointerCapture(event.pointerId)) panel.releasePointerCapture(event.pointerId);
+    if (captureTarget.hasPointerCapture(event.pointerId)) captureTarget.releasePointerCapture(event.pointerId);
   }
   panel.addEventListener('pointerup', finishGesture);
   panel.addEventListener('pointercancel', finishGesture);

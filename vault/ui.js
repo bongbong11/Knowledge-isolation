@@ -25,7 +25,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
   const root = node('section', 'kv-root'); root.id = 'kv-root';
   const header = node('div', 'kv-header');
   const title = node('strong', 'kv-title');
-  title.append(createMascotIcon(), node('span', '', '정보금고 / Knowledge Vault 0.1.11'));
+  title.append(createMascotIcon(), node('span', '', '정보금고 / Knowledge Vault 0.1.12'));
   header.append(title);
   const headerActions = node('div', 'kv-header-actions');
   const enabled = node('input'); enabled.type = 'checkbox'; enabled.checked = settings.enabled;
@@ -196,7 +196,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
     head.append(node('strong', '', existing ? '카드 수정' : '새 카드'));
     head.append(button('×', () => { editor.hidden = true; editor.replaceChildren(); render(); }, '편집 닫기'));
     const title = node('input'); title.required = true; title.maxLength = 120; title.value = card.title; title.placeholder = '카드 이름';
-    const fact = node('textarea'); fact.required = true; fact.maxLength = 2000; fact.rows = 5; fact.value = card.text; fact.placeholder = '이야기 속 사실이나 비밀 (최대 2000자)';
+    const fact = node('textarea'); fact.required = true; fact.maxLength = 2000; fact.rows = 10; fact.value = card.text; fact.placeholder = '이야기 속 사실이나 비밀 (최대 2000자)';
     const tags = [...card.manualKnownBy];
     const presets = node('div', 'kv-presets');
     const character = button('＋ 캐릭터', () => addHolder('character'));
@@ -204,7 +204,8 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
     presets.append(character, persona);
     const chips = node('div', 'kv-chips');
     const tagRow = node('div', 'kv-tag-row');
-    const tagInput = node('input'); tagInput.placeholder = 'NPC 영어 이름'; tagInput.setAttribute('aria-label', '다른 아는 대상');
+    const tagInput = node('input'); tagInput.placeholder = 'NPC 이름 (영문·한글)'; tagInput.setAttribute('aria-label', '다른 아는 대상');
+    const tagNote = node('small', 'kv-run-note', '영문 출력은 영문 이름, 한글 출력은 한글 이름으로 저장하세요. 다른 표기는 저장 후 NPC 태그를 눌러 별칭으로 추가하세요.');
     tagRow.append(tagInput, button('추가', addTag));
     const scope = node('select', 'kv-scope'); scope.setAttribute('aria-label', '정보 범위');
     for (const [value, definition] of Object.entries(KNOWLEDGE_SCOPES)) {
@@ -238,7 +239,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
     showChips();
     editor.append(head, node('label', '', '이름'), title, node('label', '', '정보 내용'), fact,
       node('label', '', '정보 범위'), scope, scopeNote,
-      node('label', '', '아는 대상'), presets, chips, tagRow, footer);
+      node('label', '', '아는 대상'), presets, chips, tagRow, tagNote, footer);
     if (card.acquisitions.length) editor.insertBefore(node('small', 'kv-run-note', '장면에서 추가된 태그는 습득 이력으로 관리합니다. 정보 내용을 바꾸면 이전 습득 기록을 다시 사용하지 않습니다.'), footer);
     editor.onsubmit = async event => {
       event.preventDefault(); addTag();

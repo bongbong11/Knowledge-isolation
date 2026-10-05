@@ -8,5 +8,5 @@ test('vault UI uses Hub permission without inferring access from installation',(
   assert.equal(canUseVault({SceneReaderHub:{canUseKnowledgeVault:()=>{throw Error('unavailable');}}}),false);
   const messages=[];
   assert.equal(requestVaultOpen({toastr:{info:message=>messages.push(message)}}),false);
-  assert.deepEqual(messages,['쉿, 업데이트 중']);
+  assert.deepEqual(messages,['씬판독기 Hub를 설치·활성화한 뒤 새로고침해 주세요.']);
 });

@@ -84,6 +84,17 @@ test('another valid acquisition keeps its tag and manual holders are never retra
   f.ctx.chat.pop();
   assert.deepEqual(reconcileCards(changed,f.ctx.chat)[0].knownBy,['Dominic','character']);
 });
+test('linked-room edits keep inherited evidence and retract only this room evidence', () => {
+  const f=fixture(), card=f.ctx.chatMetadata.knowledgeVaultV1.cards[0];
+  const origin={...outputIdentity(f.ctx.chat,1),originChatRef:'room-A'};
+  const current={...outputIdentity(f.ctx.chat,1),originChatRef:'room-B'};
+  const learned=applyAcquisitions([card],[{id:'inherited',cardId:'one',actorName:'character',scope:'full',sourceIdentity:origin},
+    {id:'local',cardId:'one',actorName:'NPC',scope:'full',sourceIdentity:current}]);
+  const reconciled=reconcileCards(learned,[],{chatRef:'room-B'})[0];
+  assert.deepEqual(reconciled.knownBy,['Dominic','character']);
+  assert.deepEqual(reconciled.acquisitions.map(item=>item.id),['inherited']);
+  assert.equal(reconcileCards(learned,[],{chatRef:'room-A'})[0].acquisitions[0].id,'local');
+});
 
 test('returning to an earlier swipe can restore its evidence through a fresh audit', async () => {
   const f=fixture(), original=f.ctx.chat[1].mes;

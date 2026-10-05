@@ -74,7 +74,7 @@ export function validateAcquisitions(result, request) {
       if (card.knownBy.some(name => actorId(name) === actor.id)) { accepted++; continue; }
       changes.push({ cardId: card.id, actorId: actor.id, actorName: actor.name, scope: learner.scope, method: learner.method,
         date: request.date, evidence, sourceIdentity: request.identity,
-        id: fingerprint(`${card.id}:${actor.id}:${request.identity.prefix}:${learner.scope}`) });
+        id: fingerprint(`${card.id}:${actor.id}:${request.identity.originChatRef || ''}:${request.identity.prefix}:${learner.scope}`) });
       accepted++;
     }
     if (accepted && !rejected) checked.push(card.id); else unresolved.push(card.id);
@@ -83,10 +83,10 @@ export function validateAcquisitions(result, request) {
   }
   return { changes, unresolved, checked, diagnostics };
 }
-export function reconcileCards(cards, chat) {
+export function reconcileCards(cards, chat, {chatRef=''}={}) {
   const prefixes = sourcePrefixes(chat);
   return cards.map(card => {
-    const acquisitions = card.acquisitions.filter(item => identityCurrent(item.sourceIdentity, chat, prefixes));
+    const acquisitions = card.acquisitions.filter(item => item.sourceIdentity?.originChatRef && item.sourceIdentity.originChatRef!==chatRef || identityCurrent(item.sourceIdentity, chat, prefixes));
     return { ...card, acquisitions, knownBy: uniqueTags([...card.manualKnownBy, ...acquisitions.filter(item => item.scope === 'full').map(item => item.actorName)]) };
   });
 }
