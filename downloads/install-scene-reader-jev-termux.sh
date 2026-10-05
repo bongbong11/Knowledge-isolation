@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-PLUGIN_VERSION="0.8.0"
-PLUGIN_URL="https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.8.0.zip"
+PLUGIN_VERSION="0.8.1"
+PLUGIN_URL="https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.8.1.zip"
 ST_DIR="${1:-$HOME/SillyTavern}"
 PLUGIN_DIR="$ST_DIR/plugins/scene-reader-jev"
 
@@ -73,8 +73,8 @@ for item in "${required_dirs[@]}"; do
     fi
 done
 
-if ! grep -q '"version"[[:space:]]*:[[:space:]]*"0\.8\.0"' "$SRC_DIR/package.json"; then
-    echo "[중단] 다운로드한 플러그인의 버전이 0.8.0으로 확인되지 않습니다."
+if ! grep -q '"version"[[:space:]]*:[[:space:]]*"0\.8\.1"' "$SRC_DIR/package.json"; then
+    echo "[중단] 다운로드한 플러그인의 버전이 0.8.1로 확인되지 않습니다."
     echo "기존 플러그인은 건드리지 않았습니다."
     exit 1
 fi
@@ -88,7 +88,7 @@ else
     echo "  기존 플러그인 없음 - 백업 생략"
 fi
 
-echo "[5/6] scene-reader-jev 폴더에 0.8.0 전체 내용 덮어쓰기"
+echo "[5/6] scene-reader-jev 폴더에 0.8.1 전체 내용 덮어쓰기"
 mkdir -p "$PLUGIN_DIR"
 cp -a "$SRC_DIR/." "$PLUGIN_DIR/"
 
@@ -126,7 +126,7 @@ fi
 
 echo
 echo "이제 SillyTavern 서버를 평소 사용하던 방법으로 완전히 재시작하세요."
-echo "기존 사용자라면 Hub 0.2.0에서 '📦 자료 이사'를 진행하세요."
+echo "기존 사용자라면 Hub 0.2.1에서 '📦 자료 이사'를 진행하세요."
 echo
 echo "참고: 다운로드/압축 임시 폴더는 다음 위치에 남아 있습니다."
 echo "  $TMP_DIR"
