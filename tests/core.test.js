@@ -4,6 +4,14 @@ import { normalizeCard, resolveRoute, buildPayload, canSendRaw, cardRevision, se
 import { checkPromptReceipt, sameRequestMessages } from '../vault/receipt.js';
 import { clampGeometry } from '../vault/popup.js';
 
+test('mobile geometry fills the viewport regardless of old saved size',()=>{
+  for(const viewport of [{width:390,height:844},{width:320,height:640},{width:844,height:390},{width:390,height:270}]){
+    const rect=clampGeometry({left:10,top:20,width:360,height:280},viewport);
+    assert.equal(rect.width,viewport.width-16);assert.equal(rect.height,viewport.height-16);
+    assert.equal(rect.left,8);assert.equal(rect.top,8);
+  }
+});
+
 test('overlapping holders and world truth keep separate access and routing', () => {
   const card = normalizeCard({ id: 'one', title: 'Secret', text: 'Hidden fact', knownBy: ['세계', '유저', 'Mia', 'Mia'] });
   assert.deepEqual(card.knownBy, ['user', 'Mia']);

@@ -1,8 +1,10 @@
 const STORAGE_KEY = 'knowledge-vault-popup-geometry-v1';
+const compactViewport = viewport => viewport.width <= 600 || viewport.height <= 500;
 
 export function clampGeometry(value, viewport) {
   const widthLimit = Math.max(1, viewport.width - 16);
   const heightLimit = Math.max(1, viewport.height - 16);
+  if(compactViewport(viewport))return {left:8,top:8,width:widthLimit,height:heightLimit};
   const minWidth = Math.min(360, widthLimit);
   const minHeight = Math.min(280, heightLimit);
   const width = Math.min(widthLimit, Math.max(minWidth, Number(value?.width) || Math.min(900, widthLimit)));
@@ -26,22 +28,24 @@ export function createPopup({ render, canOpen = () => false }) {
   panel.append(resizeHandle);
   document.body.append(panel);
 
-  const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
-  let geometry;
-  try { geometry = clampGeometry(JSON.parse(localStorage.getItem(STORAGE_KEY)), viewport()); }
-  catch { geometry = clampGeometry(null, viewport()); }
+  const viewport = () => ({ width: window.visualViewport?.width || window.innerWidth, height: window.visualViewport?.height || window.innerHeight });
+  let geometry, preferredGeometry;
+  try { preferredGeometry = JSON.parse(localStorage.getItem(STORAGE_KEY)); }
+  catch { preferredGeometry = null; }
   function applyGeometry(next, save = false) {
     geometry = clampGeometry(next, viewport());
     Object.assign(panel.style, {
       transform: 'none', left: `${geometry.left}px`, top: `${geometry.top}px`,
       width: `${geometry.width}px`, height: `${geometry.height}px`,
+      minWidth: `${Math.min(360,geometry.width)}px`, minHeight: `${Math.min(280,geometry.height)}px`,
     });
-    if (save) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(geometry)); } catch { /* Storage is optional. */ } }
+    if (save && !compactViewport(viewport())) { preferredGeometry={...geometry};try { localStorage.setItem(STORAGE_KEY, JSON.stringify(preferredGeometry)); } catch { /* Storage is optional. */ } }
   }
-  applyGeometry(geometry);
+  applyGeometry(preferredGeometry);
 
   let gesture = null;
   function startGesture(event, kind) {
+    if(compactViewport(viewport()))return;
     if (event.button !== 0 || (kind === 'move' && event.pointerType === 'touch')) return;
     event.preventDefault();
     event.stopPropagation();
@@ -80,11 +84,14 @@ export function createPopup({ render, canOpen = () => false }) {
     event.preventDefault();
     applyGeometry({ ...geometry, width: geometry.width + change[0], height: geometry.height + change[1] }, true);
   });
-  window.addEventListener('resize', () => applyGeometry(geometry, true));
+  const fitViewport=()=>applyGeometry(preferredGeometry);
+  window.addEventListener('resize', fitViewport);
+  window.visualViewport?.addEventListener('resize', fitViewport);
 
   const close = () => { if (panel.open) panel.close(); panel.hidden = true; };
   const open = () => {
     if (!canOpen()) return false;
+    fitViewport();
     render(); panel.hidden = false;
     if (!panel.open) panel.showModal();
     panel.querySelector('.kv-header button')?.focus();

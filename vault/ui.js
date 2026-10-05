@@ -25,7 +25,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
   const root = node('section', 'kv-root'); root.id = 'kv-root';
   const header = node('div', 'kv-header');
   const title = node('strong', 'kv-title');
-  title.append(createMascotIcon(), node('span', '', '정보금고 / Knowledge Vault 0.1.12'));
+  title.append(createMascotIcon(), node('span', '', '정보금고 / Knowledge Vault 0.1.13'));
   header.append(title);
   const headerActions = node('div', 'kv-header-actions');
   const enabled = node('input'); enabled.type = 'checkbox'; enabled.checked = settings.enabled;
@@ -128,6 +128,7 @@ export function mountVault({ host, context, settings, getRunStatus, onSettingsCh
       editor.replaceChildren();
     }
     const cards = readCards(context());
+    root.classList.toggle('kv-editing',!editor.hidden);
     const status = getRunStatus();
     renderStatus(cards, status);
     list.replaceChildren(); view.replaceChildren();

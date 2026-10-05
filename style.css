@@ -59,11 +59,17 @@
 .kv-presets, .kv-chips, .kv-detail-holders { flex-wrap: wrap; }
 .kv-form-actions { margin-top: 10px; }
 .kv-resize-handle { position: absolute; right: 0; bottom: 0; z-index: 2; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 0 0 8px 0; background: transparent; color: inherit; font-size: 16px; line-height: 1; cursor: nwse-resize; touch-action: none; }
-@media (max-width: 600px) {
+@media (max-width: 600px), (max-height: 500px) {
   #kv-popup { min-width: 0; }
   .kv-root { display: block; }
   .kv-browser { grid-template-columns: minmax(0, 1fr); }
   .kv-list { height: auto; min-height: 100px; max-height: 180px; }
   .kv-detail { height: auto; min-height: 360px; max-height: none; overflow: visible; }
   .kv-header { cursor: default; }
+  .kv-resize-handle { display: none; }
+  .kv-root.kv-editing .kv-list, .kv-root.kv-editing .kv-run { display: none; }
+  .kv-root.kv-editing .kv-detail { min-height: 0; }
+  .kv-editor textarea { min-height: 240px; height: 42dvh; font-size: 16px; }
+  .kv-editor input:not([type='checkbox']), .kv-editor .kv-scope, .kv-alias-editor input { font-size: 16px; }
+  .kv-form-actions { position: sticky; bottom: 0; padding: 8px 0; background: var(--SmartThemeBlurTintColor, #25252b); }
 }
